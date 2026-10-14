@@ -84,7 +84,7 @@ The main rule-based workflow works without neural checkpoints. The experimental 
 
 - Only text-based PDFs are supported; scanned/image-only PDFs require OCR, which is not included.
 - The skill vocabulary is finite and may miss synonyms or context.
-- Custom JDs do not automatically distinguish required from preferred skills.
+- Custom JDs use nearby wording cues to classify skills as required or preferred; this classification is heuristic and must be reviewed.
 - No real-world benchmark, fairness audit, or job-performance validation is included.
 - Resume files contain personal information. Process only files you are authorized to use; do not deploy publicly without reviewing access control, data retention, privacy, and security requirements.
 - A qualified human should review source documents and job-related evidence before any employment decision.

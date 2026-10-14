@@ -149,6 +149,16 @@ def main():
                 )
                 role_profile = get_role_profile(selected_role)
                 st.caption("A predefined role profile is used when no custom job description is supplied.")
+                with st.expander("View skills included in the Data Analyst profile", expanded=True):
+                    st.markdown("**Core / required skills**")
+                    st.write(", ".join(role_profile["required_skills"]))
+                    st.markdown("**Preferred / additional skills**")
+                    st.write(", ".join(role_profile["preferred_skills"]))
+                    st.caption(
+                        "To tailor the assessment, paste the company's job description below. "
+                        "Add role-specific tools, domain knowledge, or responsibilities there; "
+                        "recognized skills mentioned in the custom description are used for skill matching."
+                    )
                 jd_text = st.text_area(
                     "Optional: paste a specific job description",
                     height=200,
@@ -329,38 +339,68 @@ def main():
             # ---- Batch Comparison ----
             st.markdown("---")
             st.subheader("Batch Candidate Comparison")
-            st.caption("Compare multiple candidates against the same job description")
-            
-            num_candidates = st.number_input("Number of candidates to compare", min_value=2, max_value=10, value=3, key="num_cands")
-            
-            candidates = []
-            cols = st.columns(min(num_candidates, 3))
-            for i in range(num_candidates):
-                with cols[i % 3]:
-                    name = st.text_input(f"Candidate {i+1} Name", value=f"Candidate {i+1}", key=f"cand_name_{i}")
-                    text = st.text_area(f"Resume Text", height=100, key=f"cand_text_{i}", 
-                                       placeholder=f"Paste resume text for candidate {i+1}...")
-                    if text.strip():
-                        candidates.append({"name": name, "resume_text": text})
-            
-            if st.button("Rank All Candidates", key="rank_btn") and len(candidates) >= 2:
-                with st.spinner("Evaluating and ranking candidates..."):
-                    results = pipeline.rank_multiple_candidates(candidates, effective_jd)
-                
-                st.markdown("### Ranked Leaderboard")
-                leaderboard_data = []
-                for r in results:
-                    leaderboard_data.append({
-                        "Rank": r["rank"],
-                        "Name": r["name"],
-                        "Match Score (%)": r["match_percentage"],
-                        "Similarity": r["siamese_similarity"],
-                        "Skills Found": len(r["entities"].get("skills", [])),
-                        "Decision": r["decision"],
-                    })
-                
-                df_lb = pd.DataFrame(leaderboard_data)
-                st.dataframe(df_lb, hide_index=True, use_container_width=True)
+            st.caption("Upload 2–10 PDF resumes to compare candidates against the selected role and job description.")
+
+            batch_files = st.file_uploader(
+                "Upload candidate resumes (PDF)",
+                type=["pdf"],
+                accept_multiple_files=True,
+                key="batch_resume_pdfs",
+                help="Select multiple PDF files at once. The filename is used as the candidate name.",
+            )
+            if batch_files and len(batch_files) > 10:
+                st.warning("Please upload no more than 10 resumes per comparison.")
+
+            if batch_files:
+                st.write("**Files selected:**")
+                for file in batch_files[:10]:
+                    st.write(f"- {file.name}")
+
+            if st.button("Rank All Candidates", key="rank_btn"):
+                if not batch_files or len(batch_files) < 2:
+                    st.warning("Please upload at least 2 PDF resumes to create a leaderboard.")
+                elif len(batch_files) > 10:
+                    st.warning("Please upload no more than 10 PDF resumes per comparison.")
+                else:
+                    from resume_parser import extract_text_from_pdf
+                    candidates = []
+                    parse_errors = []
+                    for file in batch_files:
+                        try:
+                            text = extract_text_from_pdf(file)
+                            if not text.strip():
+                                parse_errors.append(f"{file.name}: no readable text found. It may be a scanned PDF.")
+                                continue
+                            candidates.append({
+                                "name": os.path.splitext(file.name)[0],
+                                "resume_text": text,
+                            })
+                        except Exception as exc:
+                            parse_errors.append(f"{file.name}: could not read PDF ({exc})")
+
+                    for error in parse_errors:
+                        st.warning(error)
+
+                    if len(candidates) < 2:
+                        st.error("At least 2 readable PDF resumes are required to rank candidates.")
+                    else:
+                        with st.spinner("Extracting PDF text and ranking candidates..."):
+                            results = pipeline.rank_multiple_candidates(candidates, effective_jd)
+
+                        st.markdown("### Ranked Leaderboard")
+                        leaderboard_data = []
+                        for r in results:
+                            leaderboard_data.append({
+                                "Rank": r["rank"],
+                                "Name": r["name"],
+                                "Match Score (%)": r["match_percentage"],
+                                "Similarity": r["siamese_similarity"],
+                                "Skills Found": len(r["entities"].get("skills", [])),
+                                "Decision": r["decision"],
+                            })
+
+                        df_lb = pd.DataFrame(leaderboard_data)
+                        st.dataframe(df_lb, hide_index=True, use_container_width=True)
     
     # ================================================================
     # TAB 2: Original Resume Screening

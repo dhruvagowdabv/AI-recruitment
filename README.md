@@ -51,7 +51,7 @@ Scores measure recognized textual evidence coverage only. They are not probabili
 
 - Skill recognition uses phrase aliases and simple negation checks; it is not full semantic understanding.
 - Only text-based PDFs are supported. OCR for scanned/image-only PDFs is not included.
-- Custom job descriptions do not automatically distinguish must-have from preferred requirements.
+- Custom job descriptions use local wording cues to heuristically distinguish required from preferred skills; reviewers should verify this classification.
 - Experimental neural checkpoints are not calibrated on real-world recruitment outcomes.
 - No claims of fairness, predictive validity, or suitability for real hiring decisions are made.
 - Use only resumes you are authorized to process. A public deployment needs a privacy, retention, access-control, and security review.

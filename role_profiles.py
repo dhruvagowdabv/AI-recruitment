@@ -131,10 +131,12 @@ def analyze_role_match(
         preferred_matched = []
         required_coverage = len(matched) / len(target_skills) if target_skills else 0.0
         preferred_coverage = 0.0
-        role_score = required_coverage if target_skills else 0.0
-        breakdown = [
-            {"Component": "Recognized skills named in custom JD", "Score (%)": round(role_score * 100, 1), "Contribution (points)": round(role_score * 100, 1)},
-        ]
+        role_score = required_coverage if target_skills else None
+        breakdown = (
+            [{"Component": "Recognized skills named in custom JD", "Score (%)": round(role_score * 100, 1), "Contribution (points)": round(role_score * 100, 1)}]
+            if target_skills else
+            [{"Component": "Skill coverage", "Score (%)": "N/A", "Contribution (points)": "N/A"}]
+        )
 
     suggestions = []
     missing_required = [skill for skill in required if skill in missing]
@@ -158,13 +160,15 @@ def analyze_role_match(
             "Keep skill claims specific by linking them to projects, tasks, or outcomes where possible."
         )
 
-    percentage = round(role_score * 100, 1)
+    score_available = role_score is not None
+    percentage = round(role_score * 100, 1) if score_available else None
     return {
         "role_name": role_name,
-        "role_match_score": round(role_score, 4),
+        "role_match_score": round(role_score, 4) if score_available else None,
         "role_match_percentage": percentage,
+        "score_available": score_available,
         "decision": "Review evidence; this score is not a hiring decision",
-        "skill_coverage": round(role_score, 4),
+        "skill_coverage": round(role_score, 4) if score_available else None,
         "skill_coverage_percentage": percentage,
         "required_skill_coverage_percentage": round(required_coverage * 100, 1),
         "preferred_skill_coverage_percentage": round(preferred_coverage * 100, 1),

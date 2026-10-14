@@ -155,7 +155,7 @@ def _classify_custom_skills(target_text: str):
                 continue
             starts = [text.rfind(mark, 0, match.start()) for mark in (".", "!", "?", ";", "\n")]
             start = max(starts) + 1
-            ends = [text.find(mark, match.end()) for mark in (".", "!", "?", "\n")]
+            ends = [text.find(mark, match.end()) for mark in (".", "!", "?", ";", "\n")]
             ends = [end for end in ends if end >= 0]
             end = min(ends) if ends else len(text)
             context = text[start:end]

@@ -136,6 +136,34 @@ def recognized_skills(text: str) -> List[str]:
     return _skills_mentioned(text or "", list(SKILL_ALIASES))
 
 
+def _classify_custom_skills(target_text: str):
+    """Classify recognized JD skills using local sentence cues.
+
+    Unmarked requirements default to required. This is a lightweight heuristic;
+    recruiters should verify the classification.
+    """
+    required, preferred = [], []
+    text = target_text or ""
+    preferred_cues = re.compile(
+        r"\b(?:preferred|nice to have|bonus|desirable|ideally|optional|a plus|plus if|would be a plus)\b",
+        re.I,
+    )
+    for skill in _skills_mentioned(text, list(SKILL_ALIASES)):
+        for pattern in SKILL_ALIASES.get(skill, [r"\b" + re.escape(skill) + r"\b"]):
+            match = re.search(pattern, text, re.I)
+            if not match:
+                continue
+            starts = [text.rfind(mark, 0, match.start()) for mark in (".", "!", "?", "\n")]
+            start = max(starts) + 1
+            ends = [text.find(mark, match.end()) for mark in (".", "!", "?", "\n")]
+            ends = [end for end in ends if end >= 0]
+            end = min(ends) if ends else len(text)
+            context = text[start:end]
+            (preferred if preferred_cues.search(context) else required).append(skill)
+            break
+    return required, preferred
+
+
 def analyze_role_match(
     resume_text: str,
     target_text: str,
@@ -166,16 +194,20 @@ def analyze_role_match(
         weights = {s: 0.70 / len(required) for s in required}
         weights.update({s: 0.30 / len(preferred) for s in preferred})
     else:
-        target_skills = _skills_mentioned(target_text, list(SKILL_ALIASES))
-        required = target_skills
-        preferred = []
-        matched_required = _skills_mentioned(resume_text, target_skills)
-        matched_preferred = []
+        required, preferred = _classify_custom_skills(target_text)
+        target_skills = list(dict.fromkeys(required + preferred))
+        matched_required = _skills_mentioned(resume_text, required)
+        matched_preferred = _skills_mentioned(resume_text, preferred)
         required_coverage = len(matched_required) / len(required) if required else 0.0
-        preferred_coverage = 0.0
+        preferred_coverage = len(matched_preferred) / len(preferred) if preferred else 0.0
         score_available = bool(target_skills)
-        score = required_coverage if score_available else None
-        weights = {s: 1.0 / len(target_skills) for s in target_skills} if target_skills else {}
+        if not score_available:
+            score = None
+        elif preferred:
+            score = 0.70 * required_coverage + 0.30 * preferred_coverage
+        else:
+            score = required_coverage
+        weights = {}
 
     matched = list(dict.fromkeys(matched_required + matched_preferred))
     missing_required = [s for s in required if s not in matched_required]
@@ -203,7 +235,13 @@ def analyze_role_match(
             {"Component": "Preferred skill coverage (30% weight)", "Score (%)": round(preferred_coverage * 100, 1), "Contribution (points)": round(preferred_coverage * 30, 1)},
         ])
     elif score_available:
-        breakdown.append({"Component": "Recognized JD skill coverage", "Score (%)": percentage, "Contribution (points)": percentage})
+        if preferred:
+            breakdown.extend([
+                {"Component": "Required JD skill coverage (70% weight)", "Score (%)": round(required_coverage * 100, 1), "Contribution (points)": round(required_coverage * 70, 1)},
+                {"Component": "Preferred JD skill coverage (30% weight)", "Score (%)": round(preferred_coverage * 100, 1), "Contribution (points)": round(preferred_coverage * 30, 1)},
+            ])
+        else:
+            breakdown.append({"Component": "Recognized JD skill coverage", "Score (%)": percentage, "Contribution (points)": percentage})
     else:
         breakdown.append({"Component": "Skill coverage", "Score (%)": "N/A", "Contribution (points)": "N/A"})
     breakdown.append({"Component": "Overall evidence coverage", "Score (%)": percentage if percentage is not None else "N/A", "Contribution (points)": percentage if percentage is not None else "N/A"})
@@ -227,5 +265,7 @@ def analyze_role_match(
         "score_breakdown": breakdown,
         "improvement_suggestions": suggestions,
         "scoring_mode": "Predefined role profile" if use_profile else "Custom job description",
+        "required_skills": required,
+        "preferred_skills": preferred,
         "score_note": "Textual evidence coverage only; not a probability of hiring or job performance.",
     }

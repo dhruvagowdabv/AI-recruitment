@@ -323,7 +323,7 @@ def main():
                         st.caption("Experimental similarity signal (not calibrated)")
                         
                         sim_score = result["siamese_similarity"]
-                        st.metric("Semantic Similarity", f"{sim_score:.4f}")
+                        st.metric("Experimental signal (0–1)", f"{sim_score:.4f}")
                         st.progress(min(sim_score, 1.0))
                         
                         st.caption(

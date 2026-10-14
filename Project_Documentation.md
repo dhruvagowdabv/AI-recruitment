@@ -226,7 +226,7 @@ Candidate Resume (PDF or Raw Text) + Job Description
 
 ## 7. Verification & Testing
 
-The repository includes unit tests for the role profile, score semantics, and resume-parser edge cases.
+The repository includes unit tests for role profiles, score semantics, parser edge cases, bundled checkpoint loading, and sample PDF extraction.
 
 Run them with:
 

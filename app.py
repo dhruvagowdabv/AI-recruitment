@@ -17,6 +17,11 @@ import json
 # Original model imports
 from model_base import ApplicantScreeningNN, min_max_normalize
 from resume_parser import parse_resume
+from role_profiles import (
+    get_role_profile,
+    build_role_description,
+    analyze_role_match,
+)
 
 st.set_page_config(
     page_title="AI Recruitment Simulator - Neural Matching", 
@@ -135,13 +140,24 @@ def main():
             col_jd, col_resume = st.columns(2)
             
             with col_jd:
-                st.subheader("Job Description")
+                st.subheader("Target Role")
+                selected_role = st.selectbox(
+                    "Choose a role",
+                    ["Data Analyst"],
+                    key="target_role",
+                    help="More predefined roles can be added without changing the matching workflow.",
+                )
+                role_profile = get_role_profile(selected_role)
+                st.caption("A predefined role profile is used when no custom job description is supplied.")
                 jd_text = st.text_area(
-                    "Enter the Job Description",
+                    "Optional: paste a specific job description",
                     height=200,
-                    placeholder="e.g., Looking for a Senior Data Scientist with expertise in Python, TensorFlow, and machine learning. Minimum 4 years of experience. Master's degree preferred.",
+                    placeholder="Paste a company's Data Analyst job description to tailor the assessment. Leave blank to use the predefined role profile.",
                     key="jd_input"
                 )
+                effective_jd = jd_text.strip() or build_role_description(role_profile)
+                if not jd_text.strip():
+                    st.info("Using the predefined Data Analyst role profile.")
             
             with col_resume:
                 st.subheader("Resume Input")
@@ -169,22 +185,80 @@ def main():
             
             # Evaluate button
             if st.button("Evaluate Candidate", type="primary", use_container_width=True, key="eval_btn"):
-                if not jd_text.strip():
-                    st.warning("Please enter a Job Description.")
-                elif not resume_text.strip():
+                if not resume_text.strip():
                     st.warning("Please provide a resume (upload PDF or paste text).")
                 else:
-                    with st.spinner("Running 3-stage neural network pipeline..."):
-                        result = pipeline.evaluate_candidate(resume_text, jd_text)
+                    with st.spinner("Running the neural matching pipeline and role-specific analysis..."):
+                        result = pipeline.evaluate_candidate(resume_text, effective_jd)
+                        role_analysis = analyze_role_match(
+                            resume_text=resume_text,
+                            target_text=effective_jd,
+                            model_result=result,
+                            use_profile=not bool(jd_text.strip()),
+                            role_name=selected_role,
+                        )
                     
                     # ---- Results Display ----
                     st.markdown("---")
-                    
-                    # Decision Banner
-                    if result["decision"] == "SHORTLISTED":
-                        st.success(f"**{result['decision']}** | Match Score: **{result['match_percentage']}%** | Confidence: {result['confidence']:.2f}")
+                    st.subheader(f"{selected_role} Assessment")
+                    st.caption(
+                        "The role score combines the existing neural model score with transparent skill coverage. "
+                        "It is a resume-to-role match indicator, not a probability of job success."
+                    )
+                    score_col, coverage_col, target_col = st.columns(3)
+                    score_col.metric("Role Match Score", f"{role_analysis['role_match_percentage']:.1f}/100")
+                    coverage_col.metric(
+                        "Target Skills Found",
+                        f"{role_analysis['matched_skill_count']}/{role_analysis['target_skill_count']}",
+                    )
+                    target_col.metric(
+                        "Semantic Similarity",
+                        f"{result['siamese_similarity']:.3f}",
+                    )
+                    if role_analysis["role_match_percentage"] >= 50:
+                        st.success(f"**{role_analysis['decision']}** — based on the configured role-match threshold.")
                     else:
-                        st.error(f"**{result['decision']}** | Match Score: **{result['match_percentage']}%** | Confidence: {result['confidence']:.2f}")
+                        st.warning(f"**{role_analysis['decision']}** — review the skill gaps and supporting evidence.")
+                    
+                    breakdown_col, skills_col = st.columns([1, 1])
+                    with breakdown_col:
+                        st.markdown("#### Score Breakdown")
+                        st.dataframe(
+                            pd.DataFrame(role_analysis["score_breakdown"]),
+                            hide_index=True,
+                            use_container_width=True,
+                        )
+                    with skills_col:
+                        st.markdown("#### Matched Skills")
+                        if role_analysis["matched_skills"]:
+                            st.write(", ".join(role_analysis["matched_skills"]))
+                        else:
+                            st.write("No target skills were detected in the resume.")
+                        st.markdown("#### Missing or Unverified Skills")
+                        if role_analysis["missing_skills"]:
+                            st.write(", ".join(role_analysis["missing_skills"]))
+                        else:
+                            st.write("All skills in this target profile were detected.")
+                    
+                    st.markdown("#### Improvement Suggestions")
+                    for suggestion in role_analysis["improvement_suggestions"]:
+                        st.markdown(f"- {suggestion}")
+                    
+                    with st.expander("How the role score is calculated"):
+                        st.write(
+                            "Role match score = 60% of the existing neural ranking score + "
+                            "40% of target-skill coverage. Skill coverage is the proportion of "
+                            "target skills found in the resume text. This transparent combination "
+                            "is a heuristic and has not been calibrated as a hiring probability."
+                        )
+                    
+                    st.markdown("---")
+                    st.subheader("Existing Neural Network Outputs")
+                    st.caption("The original three-network output is retained below for transparency.")
+                    if result["decision"] == "SHORTLISTED":
+                        st.success(f"**Neural model decision: {result['decision']}** | Neural Model Score: **{result['match_percentage']}%** | Model margin: {result['confidence']:.2f}")
+                    else:
+                        st.error(f"**Neural model decision: {result['decision']}** | Neural Model Score: **{result['match_percentage']}%** | Model margin: {result['confidence']:.2f}")
                     
                     # Three columns for the 3 network outputs
                     st.markdown("### Neural Network Outputs")
@@ -269,9 +343,9 @@ def main():
                     if text.strip():
                         candidates.append({"name": name, "resume_text": text})
             
-            if st.button("Rank All Candidates", key="rank_btn") and jd_text.strip() and len(candidates) >= 2:
+            if st.button("Rank All Candidates", key="rank_btn") and len(candidates) >= 2:
                 with st.spinner("Evaluating and ranking candidates..."):
-                    results = pipeline.rank_multiple_candidates(candidates, jd_text)
+                    results = pipeline.rank_multiple_candidates(candidates, effective_jd)
                 
                 st.markdown("### Ranked Leaderboard")
                 leaderboard_data = []

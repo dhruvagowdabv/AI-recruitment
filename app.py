@@ -212,8 +212,8 @@ def main():
                     st.markdown("---")
                     st.subheader(f"{selected_role} Assessment")
                     st.caption(
-                        "The role score combines the existing neural model score with transparent skill coverage. "
-                        "It is a resume-to-role match indicator, not a probability of job success."
+                        "This score measures configured skill evidence found in the resume text. "
+                        "It is not model accuracy, a probability of job success, or proof of proficiency."
                     )
                     score_col, coverage_col, target_col = st.columns(3)
                     score_col.metric("Role Match Score", f"{role_analysis['role_match_percentage']:.1f}/100")
@@ -225,10 +225,10 @@ def main():
                         "Semantic Similarity",
                         f"{result['siamese_similarity']:.3f}",
                     )
-                    if role_analysis["role_match_percentage"] >= 50:
-                        st.success(f"**{role_analysis['decision']}** — based on the configured role-match threshold.")
-                    else:
-                        st.warning(f"**{role_analysis['decision']}** — review the skill gaps and supporting evidence.")
+                    st.info(
+                        "Use this as a review aid, not an automatic shortlist/reject decision. "
+                        "A missing skill means it was not detected in the text; it does not prove the candidate lacks it."
+                    )
                     
                     breakdown_col, skills_col = st.columns([1, 1])
                     with breakdown_col:
@@ -256,19 +256,20 @@ def main():
                     
                     with st.expander("How the role score is calculated"):
                         st.write(
-                            "Role match score = 60% of the existing neural ranking score + "
-                            "40% of target-skill coverage. Skill coverage is the proportion of "
-                            "target skills found in the resume text. This transparent combination "
-                            "is a heuristic and has not been calibrated as a hiring probability."
+                            "For the predefined Data Analyst profile, evidence coverage is calculated as "
+                            "70% required-skill coverage plus 30% preferred-skill coverage. For a custom "
+                            "job description, it is the proportion of recognized skills named in that "
+                            "description that appear in the resume text. This is a text-matching heuristic, "
+                            "not model accuracy, a hiring probability, or proof that a skill is proficiently used."
                         )
                     
                     st.markdown("---")
                     st.subheader("Existing Neural Network Outputs")
-                    st.caption("The original three-network output is retained below for transparency.")
-                    if result["decision"] == "SHORTLISTED":
-                        st.success(f"**Neural model decision: {result['decision']}** | Neural Model Score: **{result['match_percentage']}%** | Model margin: {result['confidence']:.2f}")
-                    else:
-                        st.error(f"**Neural model decision: {result['decision']}** | Neural Model Score: **{result['match_percentage']}%** | Model margin: {result['confidence']:.2f}")
+                    st.caption(
+                        "Experimental diagnostics from models trained on synthetic/demo data. "
+                        "These values are shown for transparency only and are not validated match probabilities."
+                    )
+                    st.metric("Experimental ranker output (0–1)", f"{result['match_score']:.3f}")
                     
                     # Three columns for the 3 network outputs
                     st.markdown("### Neural Network Outputs")
@@ -306,26 +307,24 @@ def main():
                     
                     with net2:
                         st.markdown("#### 2. Siamese Network")
-                        st.caption("Resume-JD Semantic Similarity")
+                        st.caption("Experimental similarity signal (not calibrated)")
                         
                         sim_score = result["siamese_similarity"]
                         st.metric("Semantic Similarity", f"{sim_score:.4f}")
                         st.progress(min(sim_score, 1.0))
                         
-                        if sim_score > 0.7:
-                            st.markdown("**Strong semantic match** between resume and job description.")
-                        elif sim_score > 0.5:
-                            st.markdown("**Moderate semantic match.** Some overlap in skills/domain.")
-                        else:
-                            st.markdown("**Weak semantic match.** Resume may not align with this role.")
+                        st.caption(
+                            "The Siamese model uses keyword-frequency vectors and synthetic training pairs; "
+                            "treat this as an experimental signal, not a validated semantic similarity score."
+                        )
                     
                     with net3:
                         st.markdown("#### 3. Deep Ranking MLP")
-                        st.caption("Final Match Scoring")
+                        st.caption("Experimental neural output (not calibrated)")
                         
                         fv = result["feature_vector"]
-                        st.metric("Final Match Score", f"{result['match_percentage']}%")
-                        st.progress(min(result['match_score'], 1.0))
+                        st.metric("Raw ranker output (0–1)", f"{result['match_score']:.3f}")
+                        st.progress(max(0.0, min(float(result['match_score']), 1.0)))
                         
                         st.markdown("**Input Feature Vector:**")
                         fv_df = pd.DataFrame({
@@ -339,7 +338,7 @@ def main():
             # ---- Batch Comparison ----
             st.markdown("---")
             st.subheader("Batch Candidate Comparison")
-            st.caption("Upload 2–10 PDF resumes to compare candidates against the selected role and job description.")
+            st.caption("Upload 2–10 PDF resumes. Candidates are ranked by transparent skill-evidence coverage, not the experimental neural score.")
 
             batch_files = st.file_uploader(
                 "Upload candidate resumes (PDF)",
@@ -384,23 +383,47 @@ def main():
                     if len(candidates) < 2:
                         st.error("At least 2 readable PDF resumes are required to rank candidates.")
                     else:
-                        with st.spinner("Extracting PDF text and ranking candidates..."):
-                            results = pipeline.rank_multiple_candidates(candidates, effective_jd)
+                        with st.spinner("Extracting PDF text and comparing skill evidence..."):
+                            ranked_results = []
+                            for candidate in candidates:
+                                result = pipeline.evaluate_candidate(candidate["resume_text"], effective_jd)
+                                analysis = analyze_role_match(
+                                    resume_text=candidate["resume_text"],
+                                    target_text=effective_jd,
+                                    model_result=result,
+                                    use_profile=not bool(jd_text.strip()),
+                                    role_name=selected_role,
+                                )
+                                ranked_results.append({
+                                    "name": candidate["name"],
+                                    "analysis": analysis,
+                                    "diagnostics": result,
+                                })
+                            ranked_results.sort(
+                                key=lambda item: item["analysis"]["role_match_percentage"],
+                                reverse=True,
+                            )
 
                         st.markdown("### Ranked Leaderboard")
+                        st.caption("Rank is based on the same evidence-coverage formula shown in the single-candidate assessment.")
                         leaderboard_data = []
-                        for r in results:
+                        for rank, item in enumerate(ranked_results, start=1):
+                            analysis = item["analysis"]
                             leaderboard_data.append({
-                                "Rank": r["rank"],
-                                "Name": r["name"],
-                                "Match Score (%)": r["match_percentage"],
-                                "Similarity": r["siamese_similarity"],
-                                "Skills Found": len(r["entities"].get("skills", [])),
-                                "Decision": r["decision"],
+                                "Rank": rank,
+                                "Candidate": item["name"],
+                                "Evidence Coverage (%)": analysis["role_match_percentage"],
+                                "Target Skills Found": f"{analysis['matched_skill_count']}/{analysis['target_skill_count']}",
+                                "Missing / Unverified Skills": ", ".join(analysis["missing_skills"]) or "None detected",
+                                "Experimental Ranker (0–1)": round(item["diagnostics"]["match_score"], 3),
                             })
 
                         df_lb = pd.DataFrame(leaderboard_data)
                         st.dataframe(df_lb, hide_index=True, use_container_width=True)
+                        st.info(
+                            "Leaderboard order reflects detected skill mentions only. Review each resume manually; "
+                            "PDF text extraction and keyword matching can miss skills or misinterpret context."
+                        )
     
     # ================================================================
     # TAB 2: Original Resume Screening

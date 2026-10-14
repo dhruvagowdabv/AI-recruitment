@@ -43,7 +43,7 @@ The training data and generated checkpoints are educational/demo artifacts, not 
 
 **Predefined role:** 70% required-skill coverage + 30% preferred-skill coverage.
 
-**Custom job description:** number of recognized target skills found in the resume divided by the number of recognized target skills in the job description. If no supported skills are recognized, the score is N/A.
+**Custom job description:** recognized skills are classified as required or preferred using nearby wording cues. When preferred skills are detected, the score is 70% required-skill coverage + 30% preferred-skill coverage; otherwise it is required-skill coverage. If no supported skills are recognized, the score is N/A.
 
 Scores measure recognized textual evidence coverage only. They are not probabilities, confidence values, hiring recommendations, or estimates of performance. A missing skill means the parser did not find evidence in the provided text; it does not establish that the person lacks that skill.
 

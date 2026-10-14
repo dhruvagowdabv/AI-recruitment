@@ -109,7 +109,7 @@ def main():
             st.subheader("Assessment")
             st.write("**Target:** {}".format(role_name if use_profile else "Custom job description"))
             st.write("**Required skills:** " + (", ".join(profile["required_skills"]) if use_profile else "Recognized skills from the custom JD"))
-            st.write("**Preferred skills:** " + (", ".join(profile["preferred_skills"]) if use_profile else "Not separately classified in custom-JD mode"))
+            st.write("**Preferred skills:** " + (", ".join(profile["preferred_skills"]) if use_profile else "Detected from preferred/bonus wording in the JD; verify manually"))
             assess = st.button("Assess resume", type="primary", use_container_width=True)
 
             if assess:

@@ -153,7 +153,7 @@ def _classify_custom_skills(target_text: str):
             match = re.search(pattern, text, re.I)
             if not match:
                 continue
-            starts = [text.rfind(mark, 0, match.start()) for mark in (".", "!", "?", "\n")]
+            starts = [text.rfind(mark, 0, match.start()) for mark in (".", "!", "?", ";", "\n")]
             start = max(starts) + 1
             ends = [text.find(mark, match.end()) for mark in (".", "!", "?", "\n")]
             ends = [end for end in ends if end >= 0]
@@ -174,8 +174,9 @@ def analyze_role_match(
     """Score target-skill evidence coverage without relying on an uncalibrated model.
 
     Predefined profiles weight required coverage at 70% and preferred coverage at
-    30%. Custom JDs use equal coverage over recognized skills. A custom JD with no
-    recognized skills has no valid score and explicitly returns score_available=False.
+    30%. Custom JDs use nearby wording cues to classify skills as required or
+    preferred, then use the same weighting when preferred skills are present. A custom
+    JD with no recognized skills has no valid score and returns score_available=False.
     """
     profile = get_role_profile(role_name)
     resume_text = resume_text or ""
@@ -191,8 +192,6 @@ def analyze_role_match(
         preferred_coverage = len(matched_preferred) / len(preferred) if preferred else 0.0
         score_available = True
         score = 0.70 * required_coverage + 0.30 * preferred_coverage
-        weights = {s: 0.70 / len(required) for s in required}
-        weights.update({s: 0.30 / len(preferred) for s in preferred})
     else:
         required, preferred = _classify_custom_skills(target_text)
         target_skills = list(dict.fromkeys(required + preferred))
@@ -207,7 +206,6 @@ def analyze_role_match(
             score = 0.70 * required_coverage + 0.30 * preferred_coverage
         else:
             score = required_coverage
-        weights = {}
 
     matched = list(dict.fromkeys(matched_required + matched_preferred))
     missing_required = [s for s in required if s not in matched_required]

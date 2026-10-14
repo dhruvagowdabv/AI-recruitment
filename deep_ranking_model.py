@@ -48,7 +48,7 @@ class DeepRankingMLP(nn.Module):
         [5] project_count       - Number of projects mentioned
     
     Output:
-        match_score: float in [0, 1], probability of candidate-job fit
+        match_score: raw sigmoid output in [0, 1], not a calibrated probability
     """
     
     def __init__(self, input_dim=6):
@@ -129,7 +129,7 @@ class DeepRankingMLP(nn.Module):
 class RankingLoss(nn.Module):
     """
     Combined loss for the ranking network:
-        1. BCE Loss: For calibrated probability prediction
+        1. BCE Loss: For fitting synthetic labels
         2. Margin Ranking Loss: To ensure correct relative ordering
         
     Total Loss = α · BCE + (1-α) · MarginRanking

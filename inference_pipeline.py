@@ -160,10 +160,14 @@ class CandidateMatchingPipeline:
         
         Returns float between 0.0 and 1.0
         """
-        if not self.siamese_model:
-            return 0.5
-        
-        return compute_similarity(resume_text, jd_text, self.siamese_model, self.vectorizer)
+        if self.siamese_model is None or self.vectorizer is None:
+            raise RuntimeError("Siamese model is not loaded; refusing to substitute a fabricated similarity score.")
+        if not (resume_text or "").strip() or not (jd_text or "").strip():
+            raise ValueError("Resume text and job description must both contain readable text.")
+        score = float(compute_similarity(resume_text, jd_text, self.siamese_model, self.vectorizer))
+        if not np.isfinite(score):
+            raise ValueError("Siamese model returned a non-finite score.")
+        return float(np.clip(score, 0.0, 1.0))
     
     def compute_final_score(self, siamese_score, entities):
         """
@@ -173,8 +177,8 @@ class CandidateMatchingPipeline:
         
         Returns float between 0.0 and 1.0
         """
-        if not self.ranking_model:
-            return siamese_score
+        if self.ranking_model is None or self.normalizer is None:
+            raise RuntimeError("Ranking model or feature normalizer is not loaded.")
         
         # Build feature vector
         skill_count = len(entities.get("skills", []))
@@ -197,10 +201,12 @@ class CandidateMatchingPipeline:
         features_norm = self.normalizer.transform(features)
         
         with torch.no_grad():
-            X = torch.FloatTensor(features_norm)
-            score = self.ranking_model(X).squeeze().item()
-        
-        return score
+            X = torch.as_tensor(features_norm, dtype=torch.float32)
+            score = float(self.ranking_model(X).reshape(-1)[0].item())
+
+        if not np.isfinite(score):
+            raise ValueError("Ranking model returned a non-finite score.")
+        return float(np.clip(score, 0.0, 1.0))
     
     def evaluate_candidate(self, resume_text, job_description):
         """
@@ -221,7 +227,11 @@ class CandidateMatchingPipeline:
         """
         if not self.loaded:
             raise RuntimeError("Models not loaded. Call load_models() first.")
-        
+        if not isinstance(resume_text, str) or not resume_text.strip():
+            raise ValueError("Resume text is empty. Upload a text-based PDF or paste readable text.")
+        if not isinstance(job_description, str) or not job_description.strip():
+            raise ValueError("Job description is empty. Provide a job description before evaluating.")
+
         # Step 1: Extract entities via BiLSTM-CRF
         entities = self.extract_resume_entities(resume_text)
         
@@ -239,17 +249,16 @@ class CandidateMatchingPipeline:
         
         match_score = self.compute_final_score(siamese_score, entities)
         
-        # Decision threshold
-        decision = "SHORTLISTED" if match_score >= 0.5 else "REJECTED"
-        confidence = abs(match_score - 0.5) * 2  # 0 = uncertain, 1 = very confident
-        
+        # The ranker was trained on synthetic labels. Its sigmoid output is not a
+        # calibrated probability and must not trigger an automatic hiring decision.
         return {
             "entities": entities,
             "siamese_similarity": round(siamese_score, 4),
-            "match_score": round(match_score, 4),
-            "match_percentage": round(match_score * 100, 1),
-            "decision": decision,
-            "confidence": round(confidence, 4),
+            "match_score": round(match_score, 4),  # legacy key; raw experimental output only
+            "experimental_ranker_output": round(match_score, 4),
+            "match_percentage": round(match_score * 100, 1),  # legacy key; not accuracy or probability
+            "decision": "REVIEW REQUIRED — experimental output is not calibrated",
+            "confidence": None,
             "feature_vector": {
                 "siamese_similarity": round(siamese_score, 4),
                 "skill_count": skill_count,
@@ -334,6 +343,6 @@ if __name__ == "__main__":
         print(f"  Decision: {result['decision']}")
         print(f"  Match Score: {result['match_percentage']}%")
         print(f"  Siamese Similarity: {result['siamese_similarity']}")
-        print(f"  Confidence: {result['confidence']}")
+        print("  Note: experimental ranker output is not a calibrated probability.")
         print(f"  Entities: {result['entities']}")
         print(f"  Feature Vector: {result['feature_vector']}")

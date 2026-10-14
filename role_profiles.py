@@ -1,68 +1,100 @@
-"""Configurable job-role profiles and transparent resume-to-role analysis.
+"""Explainable, rule-based resume-to-role skill evidence scoring.
 
-The role-aware score is an explainable heuristic, not a calibrated hiring probability.
+Scores describe textual evidence coverage only. They are not hiring probabilities,
+candidate quality, or estimates of job performance.
 """
-
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-
-# Each entry contains a display name, required skills, preferred skills and a short
-# description used as the comparison target when the user does not paste a custom JD.
 ROLE_PROFILES = {
     "Data Analyst": {
         "description": (
-            "Data Analyst role requiring SQL, Excel, Python, data cleaning, data "
-            "analysis, statistics, and data visualization. Preferred skills include "
-            "Power BI, Tableau, Pandas, NumPy, exploratory data analysis, KPI reporting, "
-            "dashboard development, and communicating business insights."
+            "Data Analyst role requiring SQL, Excel, Python, data cleaning, data analysis, "
+            "data visualization and statistics. Preferred: Power BI, Tableau, Pandas, NumPy, "
+            "exploratory data analysis, KPI reporting, dashboard development and business insights."
         ),
         "required_skills": [
-            "SQL",
-            "Excel",
-            "Python",
-            "Data Cleaning",
-            "Data Analysis",
-            "Data Visualization",
-            "Statistics",
+            "SQL", "Excel", "Python", "Data Cleaning", "Data Analysis",
+            "Data Visualization", "Statistics",
         ],
         "preferred_skills": [
-            "Power BI",
-            "Tableau",
-            "Pandas",
-            "NumPy",
-            "Exploratory Data Analysis",
-            "KPI Reporting",
-            "Dashboard Development",
-            "Business Insights",
+            "Power BI", "Tableau", "Pandas", "NumPy", "Exploratory Data Analysis",
+            "KPI Reporting", "Dashboard Development", "Business Insights",
         ],
-    }
+    },
+    "Data Engineer": {
+        "description": (
+            "Data Engineer role requiring Python, SQL, ETL, data pipelines and databases. "
+            "Preferred: Apache Spark, Airflow, cloud platforms, Docker and data warehouses."
+        ),
+        "required_skills": ["Python", "SQL", "ETL", "Data Pipelines", "Databases"],
+        "preferred_skills": ["Apache Spark", "Apache Airflow", "AWS", "Azure", "Docker", "Data Warehousing"],
+    },
+    "Machine Learning Engineer": {
+        "description": (
+            "Machine Learning Engineer role requiring Python, machine learning, model evaluation, "
+            "data preprocessing and scikit-learn. Preferred: PyTorch, TensorFlow, Docker, APIs and MLOps."
+        ),
+        "required_skills": ["Python", "Machine Learning", "Model Evaluation", "Data Preprocessing", "scikit-learn"],
+        "preferred_skills": ["PyTorch", "TensorFlow", "Docker", "FastAPI", "MLOps"],
+    },
+    "Software Engineer": {
+        "description": (
+            "Software Engineer role requiring Python or Java, data structures, algorithms, Git and testing. "
+            "Preferred: REST APIs, SQL, Docker, CI/CD and cloud platforms."
+        ),
+        "required_skills": ["Python", "Java", "Data Structures", "Algorithms", "Git", "Testing"],
+        "preferred_skills": ["REST API", "SQL", "Docker", "CI/CD", "AWS", "Azure"],
+    },
 }
 
-# Canonical display name -> phrases accepted as evidence in resume/JD text.
 SKILL_ALIASES = {
-    "SQL": [r"\bsql\b", r"\bpostgres(?:ql)?\b", r"\bmysql\b", r"\bsql server\b"],
-    "Excel": [r"\bexcel\b", r"\bmicrosoft excel\b", r"\bspreadsheet(?:s)?\b"],
+    "SQL": [r"\bsql\b", r"\bpostgres(?:ql)?\b", r"\bmysql\b", r"\bsql server\b", r"\bsqlite\b"],
+    "Excel": [r"\bexcel\b", r"\bmicrosoft excel\b", r"\bspreadsheets?\b"],
     "Python": [r"\bpython\b"],
+    "Java": [r"\bjava\b"],
     "Data Cleaning": [r"\bdata cleaning\b", r"\bdata cleansing\b", r"\bcleaning data\b"],
-    "Data Analysis": [r"\bdata analysis\b", r"\bdata analytics\b", r"\banalytical analysis\b"],
-    "Data Visualization": [r"\bdata visualization\b", r"\bdata visualisation\b", r"\bvisualization\b", r"\bvisualisation\b"],
+    "Data Analysis": [r"\bdata analysis\b", r"\bdata analytics\b", r"\banalysed data\b", r"\banalyzed data\b"],
+    "Data Visualization": [r"\bdata visuali[sz]ation\b", r"\bvisuali[sz]ation\b", r"\bcharts?\b", r"\bplots?\b"],
     "Statistics": [r"\bstatistics\b", r"\bstatistical analysis\b", r"\bprobability\b"],
     "Power BI": [r"\bpower\s*bi\b"],
     "Tableau": [r"\btableau\b"],
     "Pandas": [r"\bpandas\b"],
     "NumPy": [r"\bnumpy\b"],
     "Exploratory Data Analysis": [r"\bexploratory data analysis\b", r"\beda\b"],
-    "KPI Reporting": [r"\bkpi(?:s)?\b", r"\bkey performance indicators?\b", r"\breporting\b"],
-    "Dashboard Development": [r"\bdashboard(?:s)?\b", r"\bdashboard development\b"],
+    "KPI Reporting": [r"\bkpis?\b", r"\bkey performance indicators?\b"],
+    "Dashboard Development": [r"\bdashboards?\b", r"\bdashboard development\b"],
     "Business Insights": [r"\bbusiness insights?\b", r"\bactionable insights?\b", r"\bbusiness recommendations?\b"],
     "Matplotlib": [r"\bmatplotlib\b"],
-    "NumPy": [r"\bnumpy\b"],
     "R": [r"\br programming\b", r"\blanguage r\b"],
     "Looker": [r"\blooker\b"],
     "DAX": [r"\bdax\b"],
-    "ETL": [r"\betl\b", r"\bextract transform load\b"],
+    "ETL": [r"\betl\b", r"\bextract(?:ion)?[,\s]+transform(?:ation)?[,\s]+load\b"],
+    "Data Pipelines": [r"\bdata pipelines?\b", r"\bpipeline orchestration\b"],
+    "Databases": [r"\bdatabases?\b", r"\bdatabase management\b", r"\brelational database\b"],
+    "Apache Spark": [r"\bapache spark\b", r"\bspark\b", r"\bpyspark\b"],
+    "Apache Airflow": [r"\bapache airflow\b", r"\bairflow\b"],
+    "Azure": [r"\bazure\b"],
+    "AWS": [r"\baws\b", r"\bamazon web services\b"],
+    "Docker": [r"\bdocker\b"],
+    "Data Warehousing": [r"\bdata warehouses?\b", r"\bdata warehousing\b", r"\bsnowflake\b", r"\bredshift\b"],
+    "Machine Learning": [r"\bmachine learning\b", r"\bml\b"],
+    "Model Evaluation": [r"\bmodel evaluation\b", r"\bevaluation metrics\b", r"\bprecision\b", r"\brecall\b", r"\bf1 score\b"],
+    "Data Preprocessing": [r"\bdata preprocessing\b", r"\bpreprocessing\b", r"\bfeature engineering\b"],
+    "scikit-learn": [r"\bscikit[\s-]?learn\b", r"\bsklearn\b"],
+    "PyTorch": [r"\bpytorch\b"],
+    "TensorFlow": [r"\btensorflow\b"],
+    "FastAPI": [r"\bfastapi\b"],
+    "MLOps": [r"\bmlops\b", r"\bmodel deployment\b", r"\bmodel monitoring\b"],
+    "Data Structures": [r"\bdata structures?\b"],
+    "Algorithms": [r"\balgorithms?\b", r"\bproblem solving\b"],
+    "Git": [r"\bgit\b", r"\bgithub\b", r"\bversion control\b"],
+    "Testing": [r"\btesting\b", r"\bunit tests?\b", r"\bpytest\b", r"\btest automation\b"],
+    "REST API": [r"\brest(?:ful)? apis?\b", r"\bapi development\b"],
+    "CI/CD": [r"\bci\s*/\s*cd\b", r"\bcontinuous integration\b", r"\bcontinuous delivery\b"],
 }
+
+NEGATION = re.compile(r"\b(?:no|not|without|lack(?:s|ing)?|never used|unfamiliar with)\s+(?:(?:any|prior|previous)\s+)?(?:experience with\s+|knowledge of\s+|proficiency in\s+)?$", re.I)
 
 
 def get_role_profile(role_name: str) -> Dict:
@@ -79,120 +111,121 @@ def get_role_profile(role_name: str) -> Dict:
 
 
 def build_role_description(profile: Dict) -> str:
-    """Build a natural-language target from a role profile."""
-    required = ", ".join(profile["required_skills"])
-    preferred = ", ".join(profile["preferred_skills"])
     return "{} role. Required skills: {}. Preferred skills: {}.".format(
-        profile["name"], required, preferred
+        profile["name"], ", ".join(profile["required_skills"]), ", ".join(profile["preferred_skills"])
     )
 
 
 def _contains_skill(text: str, skill: str) -> bool:
-    """Check canonical skill aliases using case-insensitive word boundaries."""
-    normalized = text or ""
-    patterns = SKILL_ALIASES.get(skill, [r"\b" + re.escape(skill.lower()) + r"\b"])
-    return any(re.search(pattern, normalized, flags=re.IGNORECASE) for pattern in patterns)
+    text = text or ""
+    patterns = SKILL_ALIASES.get(skill, [r"\b" + re.escape(skill) + r"\b"])
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, flags=re.I):
+            prefix = text[max(0, match.start() - 45):match.start()]
+            if not NEGATION.search(prefix):
+                return True
+    return False
 
 
 def _skills_mentioned(text: str, skills: List[str]) -> List[str]:
-    return [skill for skill in skills if _contains_skill(text, skill)]
+    return [skill for skill in dict.fromkeys(skills) if _contains_skill(text, skill)]
+
+
+def recognized_skills(text: str) -> List[str]:
+    """Return canonical skills with textual evidence in a string."""
+    return _skills_mentioned(text or "", list(SKILL_ALIASES))
 
 
 def analyze_role_match(
     resume_text: str,
     target_text: str,
-    model_result: Dict,
+    model_result: Dict = None,
     use_profile: bool = True,
     role_name: str = "Data Analyst",
 ) -> Dict:
-    """Combine the existing neural score with transparent target-skill coverage.
+    """Score target-skill evidence coverage without relying on an uncalibrated model.
 
-    If a custom job description mentions recognized skills, those skills become the
-    scoring targets. Otherwise, the predefined profile supplies required/preferred
-    skills. Required skills carry more weight in profile mode.
+    Predefined profiles weight required coverage at 70% and preferred coverage at
+    30%. Custom JDs use equal coverage over recognized skills. A custom JD with no
+    recognized skills has no valid score and explicitly returns score_available=False.
     """
     profile = get_role_profile(role_name)
-    resume = (resume_text or "").lower()
-    target = (target_text or "").lower()
+    resume_text = resume_text or ""
+    target_text = target_text or ""
 
-    required = list(profile["required_skills"])
-    preferred = list(profile["preferred_skills"])
-    target_skills = _skills_mentioned(target, list(SKILL_ALIASES.keys()))
-
-    if not use_profile and target_skills:
-        # A custom vacancy should focus the skill comparison on skills it actually names.
-        required_skills = target_skills
-        preferred_skills = []
-        weights = {skill: 1.0 for skill in target_skills}
+    if use_profile:
+        required = profile["required_skills"]
+        preferred = profile["preferred_skills"]
+        target_skills = list(dict.fromkeys(required + preferred))
+        matched_required = _skills_mentioned(resume_text, required)
+        matched_preferred = _skills_mentioned(resume_text, preferred)
+        required_coverage = len(matched_required) / len(required) if required else 0.0
+        preferred_coverage = len(matched_preferred) / len(preferred) if preferred else 0.0
+        score_available = True
+        score = 0.70 * required_coverage + 0.30 * preferred_coverage
+        weights = {s: 0.70 / len(required) for s in required}
+        weights.update({s: 0.30 / len(preferred) for s in preferred})
     else:
-        required_skills = required
-        preferred_skills = preferred
-        weights = {skill: 2.0 for skill in required_skills}
-        weights.update({skill: 1.0 for skill in preferred_skills})
+        target_skills = _skills_mentioned(target_text, list(SKILL_ALIASES))
+        required = target_skills
+        preferred = []
+        matched_required = _skills_mentioned(resume_text, target_skills)
+        matched_preferred = []
+        required_coverage = len(matched_required) / len(required) if required else 0.0
+        preferred_coverage = 0.0
+        score_available = bool(target_skills)
+        score = required_coverage if score_available else None
+        weights = {s: 1.0 / len(target_skills) for s in target_skills} if target_skills else {}
 
-    all_target_skills = list(dict.fromkeys(required_skills + preferred_skills))
-    matched = _skills_mentioned(resume, all_target_skills)
-    missing = [skill for skill in all_target_skills if skill not in matched]
-
-    total_weight = sum(weights.get(skill, 1.0) for skill in all_target_skills)
-    matched_weight = sum(weights.get(skill, 1.0) for skill in matched)
-    skill_coverage = (matched_weight / total_weight) if total_weight else 0.0
-
-    raw_model_score = model_result.get("match_score", 0.0)
-    try:
-        model_score = max(0.0, min(1.0, float(raw_model_score)))
-    except (TypeError, ValueError):
-        model_score = 0.0
-
-    role_score = (0.60 * model_score) + (0.40 * skill_coverage)
-    role_percentage = round(role_score * 100.0, 1)
-    coverage_percentage = round(skill_coverage * 100.0, 1)
+    matched = list(dict.fromkeys(matched_required + matched_preferred))
+    missing_required = [s for s in required if s not in matched_required]
+    missing_preferred = [s for s in preferred if s not in matched_preferred]
+    missing = missing_required + missing_preferred
+    percentage = round(score * 100, 1) if score is not None else None
+    coverage_percentage = round(len(matched) / len(target_skills) * 100, 1) if target_skills else None
 
     suggestions = []
-    if missing:
-        required_missing = [skill for skill in required_skills if skill in missing]
-        preferred_missing = [skill for skill in preferred_skills if skill in missing]
-        if required_missing:
-            suggestions.append(
-                "If you have experience with them, add evidence of these core skills: "
-                + ", ".join(required_missing) + "."
-            )
-        if preferred_missing:
-            suggestions.append(
-                "Consider adding a project or practical example demonstrating: "
-                + ", ".join(preferred_missing) + "."
-            )
-    if not _contains_skill(resume, "Data Visualization") and not any(
-        _contains_skill(resume, tool) for tool in ("Power BI", "Tableau")
-    ):
-        suggestions.append(
-            "Add a data visualization or dashboard project with the tools used and the insights delivered, if applicable."
-        )
-    if not re.search(r"\b(project|dashboard|analysis|report|business insight|case study)\b", resume):
-        suggestions.append(
-            "Include one concrete analytics project describing the problem, methods, and measurable outcome, if you have one."
-        )
+    if missing_required:
+        suggestions.append("If you have this experience, add specific evidence for required skills: " + ", ".join(missing_required) + ".")
+    if missing_preferred:
+        suggestions.append("Consider demonstrating preferred skills through a project or work example: " + ", ".join(missing_preferred) + ".")
+    if not target_skills:
+        suggestions.append("No supported skills were recognized in this job description. Add a clearer JD or extend the skill vocabulary before comparing candidates.")
+    if not re.search(r"\b(project|dashboard|analysis|report|business insight|case study|deployed|built|implemented)\b", resume_text, re.I):
+        suggestions.append("If applicable, add a concrete project or work example describing the problem, tools used and outcome.")
     if not suggestions:
-        suggestions.append(
-            "Keep the resume evidence specific: connect relevant skills to projects, outcomes, and measurable impact."
-        )
+        suggestions.append("Keep skill claims tied to specific projects, responsibilities and outcomes.")
+
+    breakdown = []
+    if use_profile:
+        breakdown.extend([
+            {"Component": "Required skill coverage (70% weight)", "Score (%)": round(required_coverage * 100, 1), "Contribution (points)": round(required_coverage * 70, 1)},
+            {"Component": "Preferred skill coverage (30% weight)", "Score (%)": round(preferred_coverage * 100, 1), "Contribution (points)": round(preferred_coverage * 30, 1)},
+        ])
+    elif score_available:
+        breakdown.append({"Component": "Recognized JD skill coverage", "Score (%)": percentage, "Contribution (points)": percentage})
+    else:
+        breakdown.append({"Component": "Skill coverage", "Score (%)": "N/A", "Contribution (points)": "N/A"})
+    breakdown.append({"Component": "Overall evidence coverage", "Score (%)": percentage if percentage is not None else "N/A", "Contribution (points)": percentage if percentage is not None else "N/A"})
 
     return {
         "role_name": role_name,
-        "role_match_score": round(role_score, 4),
-        "role_match_percentage": role_percentage,
-        "decision": "STRONGER ROLE MATCH" if role_percentage >= 50 else "ROLE GAPS IDENTIFIED",
-        "skill_coverage": round(skill_coverage, 4),
-        "skill_coverage_percentage": coverage_percentage,
+        "score_available": score_available,
+        "role_match_score": round(score, 4) if score is not None else None,
+        "role_match_percentage": percentage,
+        "decision": "Review evidence" if score_available else "Score unavailable",
+        "skill_coverage": round(score, 4) if score is not None else None,
+        "skill_coverage_percentage": percentage,
         "matched_skills": matched,
         "missing_skills": missing,
+        "matched_required_skills": matched_required,
+        "missing_required_skills": missing_required,
+        "matched_preferred_skills": matched_preferred,
+        "missing_preferred_skills": missing_preferred,
         "matched_skill_count": len(matched),
-        "target_skill_count": len(all_target_skills),
-        "score_breakdown": [
-            {"Component": "Existing neural ranking score (60%)", "Score (%)": round(model_score * 100, 1), "Contribution (points)": round(model_score * 60, 1)},
-            {"Component": "Weighted target-skill coverage (40%)", "Score (%)": coverage_percentage, "Contribution (points)": round(skill_coverage * 40, 1)},
-            {"Component": "Overall role match score", "Score (%)": role_percentage, "Contribution (points)": role_percentage},
-        ],
+        "target_skill_count": len(target_skills),
+        "score_breakdown": breakdown,
         "improvement_suggestions": suggestions,
         "scoring_mode": "Predefined role profile" if use_profile else "Custom job description",
+        "score_note": "Textual evidence coverage only; not a probability of hiring or job performance.",
     }

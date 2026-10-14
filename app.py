@@ -412,38 +412,36 @@ def main():
                                     "analysis": analysis,
                                     "diagnostics": result,
                                 })
-                            ranked_results.sort(
-                                key=lambda item: (
-                                    item["analysis"]["role_match_percentage"]
-                                    if item["analysis"]["role_match_percentage"] is not None
-                                    else -1.0
-                                ),
-                                reverse=True,
-                            )
+                            if not ranked_results[0]["analysis"]["score_available"]:
+                                st.warning(
+                                    "A leaderboard cannot be meaningfully ranked because the custom JD contains no recognized skill targets. "
+                                    "Add explicit skills/tools to the JD or leave it blank to use the predefined profile."
+                                )
+                            else:
+                                ranked_results.sort(
+                                    key=lambda item: item["analysis"]["role_match_percentage"],
+                                    reverse=True,
+                                )
+                                st.markdown("### Ranked Leaderboard")
+                                st.caption("Rank is based on the same evidence-coverage formula shown in the single-candidate assessment.")
+                                leaderboard_data = []
+                                for rank, item in enumerate(ranked_results, start=1):
+                                    analysis = item["analysis"]
+                                    leaderboard_data.append({
+                                        "Rank": rank,
+                                        "Candidate": item["name"],
+                                        "Evidence Coverage (%)": analysis["role_match_percentage"],
+                                        "Target Skills Found": f"{analysis['matched_skill_count']}/{analysis['target_skill_count']}",
+                                        "Missing / Unverified Skills": ", ".join(analysis["missing_skills"]) or "None detected",
+                                        "Experimental Ranker (0–1)": round(item["diagnostics"]["match_score"], 3),
+                                    })
 
-                        st.markdown("### Ranked Leaderboard")
-                        st.caption("Rank is based on the same evidence-coverage formula shown in the single-candidate assessment. N/A means the custom JD contained no recognized skills.")
-                        leaderboard_data = []
-                        for rank, item in enumerate(ranked_results, start=1):
-                            analysis = item["analysis"]
-                            leaderboard_data.append({
-                                "Rank": rank,
-                                "Candidate": item["name"],
-                                "Evidence Coverage (%)": (
-                                    analysis["role_match_percentage"]
-                                    if analysis["score_available"] else "N/A"
-                                ),
-                                "Target Skills Found": f"{analysis['matched_skill_count']}/{analysis['target_skill_count']}",
-                                "Missing / Unverified Skills": ", ".join(analysis["missing_skills"]) or "None detected",
-                                "Experimental Ranker (0–1)": round(item["diagnostics"]["match_score"], 3),
-                            })
-
-                        df_lb = pd.DataFrame(leaderboard_data)
-                        st.dataframe(df_lb, hide_index=True, use_container_width=True)
-                        st.info(
-                            "Leaderboard order reflects detected skill mentions only. Review each resume manually; "
-                            "PDF text extraction and keyword matching can miss skills or misinterpret context."
-                        )
+                                df_lb = pd.DataFrame(leaderboard_data)
+                                st.dataframe(df_lb, hide_index=True, use_container_width=True)
+                                st.info(
+                                    "Leaderboard order reflects detected skill mentions only. Review each resume manually; "
+                                    "PDF text extraction and keyword matching can miss skills or misinterpret context."
+                                )
     
     # ================================================================
     # TAB 2: Original Resume Screening

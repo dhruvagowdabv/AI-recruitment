@@ -235,7 +235,7 @@ def main():
                         f"{role_analysis['matched_skill_count']}/{role_analysis['target_skill_count']}",
                     )
                     target_col.metric(
-                        "Semantic Similarity",
+                        "Experimental Pair Signal",
                         f"{result['siamese_similarity']:.3f}",
                     )
                     st.info(
@@ -450,7 +450,7 @@ def main():
     # ================================================================
     with tab2:
         st.header("Resume Feature Extraction (Demo)")
-        st.caption("Keyword counts and the baseline network are educational approximations, not validated candidate assessments.")
+        st.caption("Keyword counts and the baseline network are educational approximations, not validated candidate assessments. Duration mentions may overlap and are not a verified employment-history calculation.")
         
         if nn is None:
             st.error("Model file model_weights.npz not found! Please run train.py first.")
@@ -468,7 +468,7 @@ def main():
 
             st.subheader("Extracted Candidate Features")
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Years of Experience", f"{features['Experience']} Yrs")
+            col1.metric("Duration Mentions (Estimate)", f"{features['Experience']} Yrs")
             col2.metric("Technical Score", f"{features['Tech_Score']}/100")
             col3.metric("Soft Skills Score", f"{features['Soft_Score']}/100")
             col4.metric("Projects Completed", f"{features['Projects']}")

@@ -12,7 +12,7 @@ A Streamlit research/demo project for extracting text from resumes, detecting se
 - Reports missing/unverified skill mentions and practical resume-writing suggestions.
 - Compares 2–10 PDF resumes against the same target using the same skill-evidence formula.
 - Keeps the BiLSTM-CRF, Siamese, deep-ranking, NumPy MLP, and manual-forward-pass demos available for experimentation.
-- Includes automated tests for scoring behavior and resume-parser edge cases.
+- Includes automated tests for score semantics, parser edge cases, bundled model checkpoint loading, and sample PDF extraction.
 
 ## How the main score works
 

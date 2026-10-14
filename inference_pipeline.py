@@ -198,7 +198,9 @@ class CandidateMatchingPipeline:
             proj_count
         ]], dtype=np.float32)
         
-        features_norm = self.normalizer.transform(features)
+        # Keep inference inputs within the training feature range. Values outside it
+        # are not represented by the synthetic training distribution.
+        features_norm = np.clip(self.normalizer.transform(features), 0.0, 1.0)
         
         with torch.no_grad():
             X = torch.as_tensor(features_norm, dtype=torch.float32)

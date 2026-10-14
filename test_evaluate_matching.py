@@ -13,7 +13,7 @@ class EvaluationTests(unittest.TestCase):
         report = evaluate_rows(rows, k=2)
         self.assertEqual(report["examples"], 3)
         self.assertEqual(len(report["jobs"]), 1)
-        self.assertIsNotNone(report["overall"]["roc_auc"])
+        self.assertIsNotNone(report["overall"]["macro_roc_auc_by_job"])
         self.assertIsNotNone(report["jobs"][0]["precision_at_k"])
 
     def test_invalid_label_is_rejected(self):

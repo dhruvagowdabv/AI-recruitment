@@ -220,7 +220,16 @@ def main():
                         "It is not model accuracy, a probability of job success, or proof of proficiency."
                     )
                     score_col, coverage_col, target_col = st.columns(3)
-                    score_col.metric("Role Match Score", f"{role_analysis['role_match_percentage']:.1f}/100")
+                    score_col.metric(
+                        "Skill Evidence Coverage",
+                        f"{role_analysis['role_match_percentage']:.1f}/100"
+                        if role_analysis["score_available"] else "N/A",
+                    )
+                    if not role_analysis["score_available"]:
+                        st.warning(
+                            "No recognized skills were found in the custom job description, so a skill-coverage score cannot be calculated. "
+                            "Add explicit tools/skills to the JD or use the predefined role profile."
+                        )
                     coverage_col.metric(
                         "Target Skills Found",
                         f"{role_analysis['matched_skill_count']}/{role_analysis['target_skill_count']}",
@@ -404,19 +413,26 @@ def main():
                                     "diagnostics": result,
                                 })
                             ranked_results.sort(
-                                key=lambda item: item["analysis"]["role_match_percentage"],
+                                key=lambda item: (
+                                    item["analysis"]["role_match_percentage"]
+                                    if item["analysis"]["role_match_percentage"] is not None
+                                    else -1.0
+                                ),
                                 reverse=True,
                             )
 
                         st.markdown("### Ranked Leaderboard")
-                        st.caption("Rank is based on the same evidence-coverage formula shown in the single-candidate assessment.")
+                        st.caption("Rank is based on the same evidence-coverage formula shown in the single-candidate assessment. N/A means the custom JD contained no recognized skills.")
                         leaderboard_data = []
                         for rank, item in enumerate(ranked_results, start=1):
                             analysis = item["analysis"]
                             leaderboard_data.append({
                                 "Rank": rank,
                                 "Candidate": item["name"],
-                                "Evidence Coverage (%)": analysis["role_match_percentage"],
+                                "Evidence Coverage (%)": (
+                                    analysis["role_match_percentage"]
+                                    if analysis["score_available"] else "N/A"
+                                ),
                                 "Target Skills Found": f"{analysis['matched_skill_count']}/{analysis['target_skill_count']}",
                                 "Missing / Unverified Skills": ", ".join(analysis["missing_skills"]) or "None detected",
                                 "Experimental Ranker (0–1)": round(item["diagnostics"]["match_score"], 3),

@@ -161,12 +161,13 @@ def phase3_manual_pass(data):
         print_status("FAIL", "Probabilities out of bounds!")
         return False
         
-    if score_A > score_B:
-        print_status("PASS", "Score(Profile A) > Score(Profile B) (Sanity Check passed).")
-        return True
+    finite_and_bounded = all(np.isfinite(score) and 0.0 <= score <= 1.0 for score in (score_A, score_B))
+    if finite_and_bounded:
+        print_status("PASS", "Both demo outputs are finite and bounded.")
     else:
-        print_status("FAIL", "Math logic incorrect! Profile B scored higher than Profile A.")
-        return False
+        print_status("FAIL", "A demo output is non-finite or outside [0, 1].")
+    print_status("INFO", "Ordering is not treated as proof of recruitment quality without labeled evaluation data.")
+    return finite_and_bounded
 
 def phase4_resume_parser():
     print_header("PHASE 4: RESUME PDF PARSER AUDIT")

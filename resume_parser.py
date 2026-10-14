@@ -14,6 +14,7 @@ def extract_text_from_pdf(pdf_file):
     return text.lower()
 
 def extract_experience(text):
+    """Estimate explicitly stated experience; zero means no duration was found."""
     text_lower = text.lower()
     
     # 1. Look for explicit months (e.g., "1 month", "2 months")
@@ -27,8 +28,8 @@ def extract_experience(text):
     # Combine (convert months to fractional years)
     calculated_exp = total_years + (total_months / 12.0)
     
-    # If nothing found, return entry-level 0.2 (~2 months), not 2.0
-    return round(calculated_exp, 2) if calculated_exp > 0 else 0.2
+    # Do not invent experience when the resume does not state a duration.
+    return round(calculated_exp, 2) if calculated_exp > 0 else 0.0
 
 def parse_resume(pdf_file):
     """
@@ -40,19 +41,27 @@ def parse_resume(pdf_file):
     Returns a dictionary of these features.
     """
     text = extract_text_from_pdf(pdf_file)
-    
+    if not text.strip():
+        return {
+            "Experience": 0.0,
+            "Tech_Score": 0.0,
+            "Soft_Score": 0.0,
+            "Projects": 0,
+            "Text_Extracted": False,
+        }
+
     # 1. Experience Extraction
     exp = min(extract_experience(text), 10.0)
         
     # 2. Tech Score Extraction
     tech_count = 0
     for skill in TECH_SKILLS:
-        if skill in text:
+        # Avoid substring false positives such as "java" inside "javascript".
+        pattern = r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])"
+        if re.search(pattern, text):
             tech_count += 1
-    # Max tech skills ~10. Scale to 100
+    # This is a simple keyword count, not a proficiency measurement.
     tech_score = min(tech_count * 10, 100)
-    if tech_score == 0:
-        tech_score = 30.0 # Fallback
         
     # 3. Soft Skills Extraction
     soft_count = 0
@@ -60,8 +69,6 @@ def parse_resume(pdf_file):
         if skill in text:
             soft_count += 1
     soft_score = min(soft_count * 15, 100)
-    if soft_score == 0:
-        soft_score = 40.0 # Fallback
         
     # 4. Projects Extraction
     # Count occurrences of words like "project", "developed", "built", "created"
@@ -72,14 +79,13 @@ def parse_resume(pdf_file):
     
     # Estimate projects based on keywords (roughly divide by 2)
     projects = min(proj_count // 2, 6)
-    if projects == 0:
-        projects = 1 # Fallback
         
     return {
         "Experience": float(exp),
         "Tech_Score": float(tech_score),
         "Soft_Score": float(soft_score),
-        "Projects": int(projects)
+        "Projects": int(projects),
+        "Text_Extracted": True,
     }
 
 if __name__ == '__main__':

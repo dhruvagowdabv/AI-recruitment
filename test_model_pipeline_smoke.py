@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import numpy as np
+
 from inference_pipeline import CandidateMatchingPipeline
+from model_base import ApplicantScreeningNN, min_max_normalize
 from resume_parser import extract_text_from_pdf
 
 
@@ -28,3 +31,16 @@ def test_bundled_sample_pdfs_have_extractable_text():
         with path.open("rb") as pdf_file:
             extracted = extract_text_from_pdf(pdf_file)
         assert extracted.strip(), f"Expected readable text in {name}"
+
+
+def test_baseline_numpy_checkpoint_loads_and_returns_finite_output():
+    model_path = ROOT / "model_weights.npz"
+    assert model_path.exists(), "Baseline NumPy checkpoint should be present"
+    model = ApplicantScreeningNN()
+    model.load_model(str(model_path))
+    features = np.array([[2.0, 40.0, 30.0, 1.0]], dtype=float)
+    normalized, _, _ = min_max_normalize(features, model.min_vals, model.max_vals)
+    _, probabilities = model.predict(normalized)
+    output = float(probabilities.reshape(-1)[0])
+    assert np.isfinite(output)
+    assert 0.0 <= output <= 1.0

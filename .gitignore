@@ -1,0 +1,22 @@
+__pycache__/
+.dist/
+.vscode/
+.env
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+.pytest_cache/

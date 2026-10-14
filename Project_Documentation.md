@@ -270,3 +270,8 @@ Run the role-profile unit tests with:
 ```bash
 python -m unittest test_role_profiles.py
 ```
+
+
+### V1 follow-up: profile visibility and PDF batch uploads
+
+The Intelligent Matching role selector now exposes the predefined profile's required and preferred skills in an expandable panel, so users can see the baseline criteria before adding company-specific requirements to a custom job description. Batch Candidate Comparison accepts 2–10 PDF resumes in one upload; filenames are used as candidate names, unreadable PDFs are reported, and at least two readable resumes are required for a leaderboard. Existing single-resume PDF/text input and the other application tabs remain available.

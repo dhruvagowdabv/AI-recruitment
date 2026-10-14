@@ -29,43 +29,43 @@ The neural outputs are retained as diagnostics only. No model-accuracy number is
 
 Open a terminal in the repository folder:
 
-\`\`\`powershell
+```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-\`\`\`
+```
 
 If PowerShell blocks virtual-environment activation, you can run the venv's Python directly without changing execution policy:
 
-\`\`\`powershell
+```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m streamlit run app.py
-\`\`\`
+```
 
 ## Run the application
 
 The repository includes the three model checkpoint files and the baseline NumPy weights. From the project root:
 
-\`\`\`powershell
+```powershell
 python -m streamlit run app.py
-\`\`\`
+```
 
 If a checkpoint is missing or incompatible, the app may fall back to the two educational baseline tabs; the intelligent-matching tab requires all three neural checkpoints.
 
 ## Run tests
 
-\`\`\`powershell
+```powershell
 python -m pytest -q
-\`\`\`
+```
 
 Tests check deterministic score semantics and parser behavior. Passing unit tests verifies code behavior; it does **not** establish model accuracy or hiring validity.
 
 ## Optional: retrain the demo neural models
 
-\`\`\`powershell
+```powershell
 python train_all_models.py
-\`\`\`
+```
 
 This command generates synthetic training examples and overwrites the neural checkpoint files. It can take time on CPU. Retraining is not a way to improve real-world performance without a representative, properly labeled dataset and an independent evaluation split.
 

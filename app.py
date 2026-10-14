@@ -223,9 +223,9 @@ def main():
                     score_col.metric(
                         "Skill Evidence Coverage",
                         f"{role_analysis['role_match_percentage']:.1f}/100"
-                        if role_analysis["score_available"] else "N/A",
+                        if role_analysis.get("score_available", role_analysis.get("role_match_percentage") is not None) else "N/A",
                     )
-                    if not role_analysis["score_available"]:
+                    if not role_analysis.get("score_available", role_analysis.get("role_match_percentage") is not None):
                         st.warning(
                             "No recognized skills were found in the custom job description, so a skill-coverage score cannot be calculated. "
                             "Add explicit tools/skills to the JD or use the predefined role profile."
@@ -412,7 +412,7 @@ def main():
                                     "analysis": analysis,
                                     "diagnostics": result,
                                 })
-                            if not ranked_results[0]["analysis"]["score_available"]:
+                            if not ranked_results[0]["analysis"].get("score_available", ranked_results[0]["analysis"].get("role_match_percentage") is not None):
                                 st.warning(
                                     "A leaderboard cannot be meaningfully ranked because the custom JD contains no recognized skill targets. "
                                     "Add explicit skills/tools to the JD or leave it blank to use the predefined profile."

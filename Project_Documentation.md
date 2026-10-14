@@ -28,7 +28,7 @@ For example, required-skill coverage is the number of recognized required skills
 
 ### Custom job description
 
-The app identifies supported skills mentioned in the JD. The score is the fraction of those recognized target skills also found in the resume text. If the JD contains no supported skills, the score is unavailable rather than a fabricated zero.
+The app identifies supported skills mentioned in the JD. Nearby wording cues classify recognized skills as required or preferred. When preferred skills are detected, the score is 70% required-skill coverage + 30% preferred-skill coverage; otherwise it is required-skill coverage. If the JD contains no supported skills, the score is unavailable rather than a fabricated zero.
 
 ### Interpretation
 

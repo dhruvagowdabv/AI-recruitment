@@ -97,10 +97,10 @@ def main():
     Named Entity Recognition
     
     **2. Siamese Network**  
-    Resume-JD Semantic Matching
+    Experimental keyword-vector pair signal
     
     **3. Deep Ranking MLP**  
-    Final Match Score
+    Raw output trained on synthetic targets
     """)
     st.sidebar.markdown("---")
     st.sidebar.markdown("Built with PyTorch + NumPy from scratch")
@@ -138,7 +138,7 @@ def main():
     if tab1 and pipeline:
         with tab1:
             st.header("Intelligent Candidate Matching")
-            st.markdown("Uses **3 Custom Neural Networks** working together to match candidates to job descriptions.")
+            st.markdown("The three-network pipeline is retained for experimentation. The primary score below is transparent skill-evidence coverage; neural outputs are uncalibrated diagnostics.")
             
             # Two columns: JD input + Resume input
             col_jd, col_resume = st.columns(2)

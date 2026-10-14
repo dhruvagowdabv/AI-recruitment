@@ -253,12 +253,12 @@ Key points to present during evaluation:
 
 ## 9. Role-Aware Matching V1 (Data Analyst)
 
-The Intelligent Matching tab supports a predefined **Data Analyst** profile and an optional custom job description. When the custom description is blank, the app builds a target description from the profile. When a custom description is supplied, recognized skills mentioned in that description become the skill-analysis targets; the existing three-network pipeline is still used.
+The Intelligent Matching tab supports a predefined **Data Analyst** profile and an optional custom job description. When the custom description is blank, the app uses the profile's required/preferred skills. For a custom description, recognized skill phrases become the targets; if no recognized skills are found, the coverage score is marked N/A. The three-network pipeline remains available as experimental diagnostics, but its output does not determine the main evidence score.
 
 The assessment adds:
 - Overall role-match score.
 - Matched and missing/unverified target skills.
-- A score breakdown separating the existing neural ranking score from weighted skill coverage.
+- A score breakdown separating required-skill evidence from preferred-skill evidence.
 - Improvement suggestions based on missing evidence.
 
 The main **Skill Evidence Coverage** score is deliberately independent of the unvalidated neural outputs. In predefined-profile mode, it is **70% required-skill coverage + 30% preferred-skill coverage**. In custom-JD mode, it is the proportion of recognized skills named in the JD that are detected in the resume. If no recognized skills are found in a custom JD, the score is unavailable (N/A), rather than 0%. It is not accuracy, proficiency, or a probability of job performance. A missing skill means it was not detected in the provided resume text, not that the candidate necessarily lacks it.

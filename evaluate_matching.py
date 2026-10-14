@@ -71,7 +71,7 @@ def evaluate_rows(rows, k=5):
         groups[jd].append((int(label_raw), float(result["role_match_percentage"])))
 
     report = {"examples": sum(len(group) for group in groups.values()), "jobs": []}
-    all_labels, all_scores = [], []
+    auc_values, ap_values = [], []
     for jd, pairs in groups.items():
         labels = [p[0] for p in pairs]
         scores = [p[1] for p in pairs]
@@ -86,12 +86,14 @@ def evaluate_rows(rows, k=5):
             "recall_at_k": recall,
             "k": min(k, len(pairs)),
         })
-        all_labels.extend(labels)
-        all_scores.extend(scores)
+        if report["jobs"][-1]["roc_auc"] is not None:
+            auc_values.append(report["jobs"][-1]["roc_auc"])
+        if report["jobs"][-1]["average_precision"] is not None:
+            ap_values.append(report["jobs"][-1]["average_precision"])
     report["overall"] = {
-        "roc_auc": _auc(all_labels, all_scores),
-        "average_precision": _average_precision(all_labels, all_scores),
-        "note": "Metrics describe only this labeled file. Use a held-out test set; they do not establish hiring validity or fairness.",
+        "macro_roc_auc_by_job": sum(auc_values) / len(auc_values) if auc_values else None,
+        "macro_average_precision_by_job": sum(ap_values) / len(ap_values) if ap_values else None,
+        "note": "Macro averages are across job-description groups with defined metrics. Results describe only this labeled file and do not establish hiring validity or fairness.",
     }
     return report
 

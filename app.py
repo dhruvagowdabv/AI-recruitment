@@ -459,8 +459,12 @@ def main():
         uploaded_file = st.file_uploader("Choose a PDF file", type="pdf", key="pdf_original")
         
         if uploaded_file is not None:
-            with st.spinner('Parsing resume...'):
-                features = parse_resume(uploaded_file)
+            try:
+                with st.spinner("Parsing resume..."):
+                    features = parse_resume(uploaded_file)
+            except Exception as exc:
+                st.error(f"Could not parse this PDF: {exc}")
+                st.stop()
 
             if not features.get("Text_Extracted", True):
                 st.error("No readable text was extracted from this PDF. It may be scanned or image-only; use a text-based PDF.")

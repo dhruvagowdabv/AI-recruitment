@@ -11,7 +11,7 @@ End-to-end pipeline that connects all 3 custom neural networks:
         ↓
     [3] Deep Ranking MLP → Produce final match score using NER features + similarity
         ↓
-    Final Output: Match Score + Ranked Position + Extracted Entities
+    Final Output: experimental model diagnostics + extracted entities
 
 This module is imported by the Streamlit app for live inference.
 """
@@ -160,10 +160,12 @@ class CandidateMatchingPipeline:
         
         Returns float between 0.0 and 1.0
         """
-        if not self.siamese_model:
-            return 0.5
-        
-        return compute_similarity(resume_text, jd_text, self.siamese_model, self.vectorizer)
+        if not self.siamese_model or self.vectorizer is None:
+            raise RuntimeError("Siamese model is not loaded; refusing to invent a similarity score.")
+        score = float(compute_similarity(resume_text, jd_text, self.siamese_model, self.vectorizer))
+        if not np.isfinite(score):
+            raise ValueError("Siamese model produced a non-finite output.")
+        return float(np.clip(score, 0.0, 1.0))
     
     def compute_final_score(self, siamese_score, entities):
         """
@@ -173,8 +175,8 @@ class CandidateMatchingPipeline:
         
         Returns float between 0.0 and 1.0
         """
-        if not self.ranking_model:
-            return siamese_score
+        if not self.ranking_model or self.normalizer is None:
+            raise RuntimeError("Ranking model is not loaded; refusing to substitute similarity for a ranking score.")
         
         # Build feature vector
         skill_count = len(entities.get("skills", []))
@@ -182,8 +184,8 @@ class CandidateMatchingPipeline:
         edu_level = encode_education_level(entities.get("education", []))
         org_count = len(entities.get("organizations", []))
         
-        # Estimate project count from skill diversity
-        proj_count = min(skill_count // 2, 6)
+        # Project mentions are not extracted by the current NER model; do not infer them from skill count.
+        proj_count = 0
         
         features = np.array([[
             siamese_score,
@@ -200,7 +202,9 @@ class CandidateMatchingPipeline:
             X = torch.FloatTensor(features_norm)
             score = self.ranking_model(X).squeeze().item()
         
-        return score
+        if not np.isfinite(score):
+            raise ValueError("Ranking model produced a non-finite output.")
+        return float(np.clip(score, 0.0, 1.0))
     
     def evaluate_candidate(self, resume_text, job_description):
         """
@@ -214,11 +218,15 @@ class CandidateMatchingPipeline:
             dict with:
                 - entities: Extracted named entities from resume
                 - siamese_similarity: Semantic similarity score
-                - match_score: Final calibrated match score
-                - decision: "SHORTLISTED" or "REJECTED"
+                - match_score: Experimental model output (not a probability)
+                - decision: Review-required label, never an automated hiring decision
                 - feature_vector: The 6-dim input to ranking MLP
-                - confidence: How confident the decision is
+                - confidence: None (not calibrated)
         """
+        if not isinstance(resume_text, str) or not resume_text.strip():
+            raise ValueError("Resume text must be a non-empty string.")
+        if not isinstance(job_description, str) or not job_description.strip():
+            raise ValueError("Job description must be a non-empty string.")
         if not self.loaded:
             raise RuntimeError("Models not loaded. Call load_models() first.")
         
@@ -233,15 +241,16 @@ class CandidateMatchingPipeline:
         exp_years = parse_experience_years(entities.get("experience", []))
         edu_level = encode_education_level(entities.get("education", []))
         org_count = len(entities.get("organizations", []))
-        proj_count = min(skill_count // 2, 6)
+        # Project mentions are not extracted by the current NER model; do not infer them from skill count.
+        proj_count = 0
         
         feature_vector = [siamese_score, skill_count, exp_years, edu_level, org_count, proj_count]
         
         match_score = self.compute_final_score(siamese_score, entities)
         
-        # Decision threshold
-        decision = "SHORTLISTED" if match_score >= 0.5 else "REJECTED"
-        confidence = abs(match_score - 0.5) * 2  # 0 = uncertain, 1 = very confident
+        # Outputs are not calibrated against real hiring outcomes. Never auto-reject.
+        decision = "REVIEW REQUIRED — experimental output is not calibrated"
+        confidence = None
         
         return {
             "entities": entities,
@@ -249,7 +258,7 @@ class CandidateMatchingPipeline:
             "match_score": round(match_score, 4),
             "match_percentage": round(match_score * 100, 1),
             "decision": decision,
-            "confidence": round(confidence, 4),
+            "confidence": None,
             "feature_vector": {
                 "siamese_similarity": round(siamese_score, 4),
                 "skill_count": skill_count,
@@ -334,6 +343,6 @@ if __name__ == "__main__":
         print(f"  Decision: {result['decision']}")
         print(f"  Match Score: {result['match_percentage']}%")
         print(f"  Siamese Similarity: {result['siamese_similarity']}")
-        print(f"  Confidence: {result['confidence']}")
+        print("  Confidence: not calibrated")
         print(f"  Entities: {result['entities']}")
         print(f"  Feature Vector: {result['feature_vector']}")

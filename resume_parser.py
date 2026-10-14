@@ -1,91 +1,86 @@
+"""Conservative resume PDF text extraction and baseline feature parsing.
+
+Heuristic features are descriptive only; they are not a validated hiring score.
+"""
 import re
 from pypdf import PdfReader
 
-TECH_SKILLS = ["python", "java", "c++", "c#", "javascript", "sql", "react", "node", "aws", "docker", "machine learning", "data science", "numpy", "pandas", "git"]
-SOFT_SKILLS = ["communication", "leadership", "teamwork", "problem solving", "time management", "adaptability", "critical thinking", "agile", "collaboration", "management"]
+TECH_SKILLS = [
+    "python", "java", "c++", "c#", "javascript", "typescript", "sql", "react",
+    "node.js", "aws", "docker", "machine learning", "data science", "numpy",
+    "pandas", "git", "tableau", "power bi", "pytorch", "tensorflow", "django",
+]
+SOFT_SKILLS = [
+    "communication", "leadership", "teamwork", "problem solving",
+    "time management", "adaptability", "critical thinking", "collaboration",
+]
+
 
 def extract_text_from_pdf(pdf_file):
+    """Extract text from a PDF-like file object or path.
+
+    Returns an empty string for image-only/scanned PDFs; OCR is not performed.
+    Raises parsing errors to the caller so the UI can explain the problem.
+    """
     reader = PdfReader(pdf_file)
-    text = ""
+    pages = []
     for page in reader.pages:
-        extracted = page.extract_text()
+        try:
+            extracted = page.extract_text()
+        except Exception:
+            extracted = ""
         if extracted:
-            text += extracted + " "
-    return text.lower()
+            pages.append(extracted)
+    return "\n".join(pages).strip()
+
+
+def _contains_phrase(text, phrase):
+    if phrase in {"c++", "c#"}:
+        return re.search(re.escape(phrase) + r"(?!\w)", text, re.I) is not None
+    if phrase in {"node.js"}:
+        return re.search(r"\bnode(?:\.js)?\b", text, re.I) is not None
+    return re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", text, re.I) is not None
+
 
 def extract_experience(text):
-    text_lower = text.lower()
-    
-    # 1. Look for explicit months (e.g., "1 month", "2 months")
-    month_matches = re.findall(r'(\d+)\s*(?:months?|mos?)', text_lower)
-    total_months = sum([float(m) for m in month_matches])
-    
-    # 2. Look for explicit years (e.g., "2 years", "1.5 yrs")
-    year_matches = re.findall(r'(\d+(?:\.\d+)?)\s*(?:years?|yrs?)', text_lower)
-    total_years = sum([float(y) for y in year_matches])
-    
-    # Combine (convert months to fractional years)
-    calculated_exp = total_years + (total_months / 12.0)
-    
-    # If nothing found, return entry-level 0.2 (~2 months), not 2.0
-    return round(calculated_exp, 2) if calculated_exp > 0 else 0.2
+    """Extract explicit duration mentions; do not invent experience when absent."""
+    text = text or ""
+    month_values = [float(v) for v in re.findall(r"\b(\d+(?:\.\d+)?)\s*(?:months?|mos?)\b", text, re.I)]
+    year_values = [float(v) for v in re.findall(r"\b(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b", text, re.I)]
+    # Avoid adding duplicate total-duration expressions when a resume repeats them;
+    # this remains a rough textual estimate, not a chronology calculation.
+    years = sum(year_values) + sum(month_values) / 12.0
+    return round(min(years, 50.0), 2)
+
 
 def parse_resume(pdf_file):
-    """
-    Parses a resume PDF and extracts:
-    - Experience (Years)
-    - Tech Score (0-100)
-    - Soft Score (0-100)
-    - Projects (Count)
-    Returns a dictionary of these features.
-    """
+    """Return basic textual features and extraction diagnostics."""
     text = extract_text_from_pdf(pdf_file)
-    
-    # 1. Experience Extraction
-    exp = min(extract_experience(text), 10.0)
-        
-    # 2. Tech Score Extraction
-    tech_count = 0
-    for skill in TECH_SKILLS:
-        if skill in text:
-            tech_count += 1
-    # Max tech skills ~10. Scale to 100
-    tech_score = min(tech_count * 10, 100)
-    if tech_score == 0:
-        tech_score = 30.0 # Fallback
-        
-    # 3. Soft Skills Extraction
-    soft_count = 0
-    for skill in SOFT_SKILLS:
-        if skill in text:
-            soft_count += 1
-    soft_score = min(soft_count * 15, 100)
-    if soft_score == 0:
-        soft_score = 40.0 # Fallback
-        
-    # 4. Projects Extraction
-    # Count occurrences of words like "project", "developed", "built", "created"
-    proj_keywords = ["project", "developed", "built", "created", "designed", "led"]
-    proj_count = 0
-    for word in proj_keywords:
-        proj_count += len(re.findall(r'\b' + word + r'\b', text))
-    
-    # Estimate projects based on keywords (roughly divide by 2)
-    projects = min(proj_count // 2, 6)
-    if projects == 0:
-        projects = 1 # Fallback
-        
+    if not text:
+        return {
+            "Experience": 0.0, "Tech_Score": 0.0, "Soft_Score": 0.0,
+            "Projects": 0, "Text_Extracted": False,
+            "Extraction_Warning": "No selectable text found. This may be a scanned PDF; OCR is not built in.",
+        }
+
+    tech_count = sum(_contains_phrase(text, skill) for skill in TECH_SKILLS)
+    soft_count = sum(_contains_phrase(text, skill) for skill in SOFT_SKILLS)
+    project_mentions = len(re.findall(r"\b(?:project|dashboard|case study|application)\b", text, re.I))
+    experience = extract_experience(text)
+
     return {
-        "Experience": float(exp),
-        "Tech_Score": float(tech_score),
-        "Soft_Score": float(soft_score),
-        "Projects": int(projects)
+        "Experience": float(experience),
+        "Tech_Score": round(min(tech_count / max(len(TECH_SKILLS), 1) * 100, 100), 1),
+        "Soft_Score": round(min(soft_count / max(len(SOFT_SKILLS), 1) * 100, 100), 1),
+        "Projects": min(project_mentions, 100),
+        "Text_Extracted": True,
+        "Extraction_Warning": None,
     }
 
-if __name__ == '__main__':
-    # Simple test (assuming you have a test.pdf)
+
+if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
         print(parse_resume(sys.argv[1]))
     else:
-        print("Run with a PDF file to test parsing: python resume_parser.py <file.pdf>")
+        print("Usage: python resume_parser.py <resume.pdf>")

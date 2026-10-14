@@ -523,7 +523,10 @@ def main():
         
         if os.path.exists('test_candidates.csv'):
             df = pd.read_csv('test_candidates.csv')
-            
+            # The CSV's "shortlisted" column is a synthetic training label, not a real candidate outcome.
+            if "shortlisted" in df.columns:
+                df = df.drop(columns=["shortlisted"])
+
             # Predict for all
             X_test_raw = df[['years_experience', 'technical_score', 'soft_skills_score', 'projects_completed']].values
             X_norm, _, _ = min_max_normalize(X_test_raw, nn.min_vals, nn.max_vals)

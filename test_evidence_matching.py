@@ -27,6 +27,16 @@ class EvidenceMatchingTests(unittest.TestCase):
         self.assertEqual(result["matched_skill_count"], 2)
         self.assertAlmostEqual(result["role_match_percentage"], 66.7, places=1)
 
+    def test_custom_jd_classifies_preferred_skills_from_local_wording(self):
+        result = analyze_role_match(
+            "Python developer",
+            "Python is required. Tableau is preferred.",
+            use_profile=False,
+        )
+        self.assertIn("Python", result["required_skills"])
+        self.assertIn("Tableau", result["preferred_skills"])
+        self.assertEqual(result["role_match_percentage"], 70.0)
+
     def test_custom_jd_without_supported_skills_has_no_score(self):
         result = analyze_role_match(
             "Strong communicator and self-starter",

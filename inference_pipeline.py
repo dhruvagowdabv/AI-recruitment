@@ -184,8 +184,8 @@ class CandidateMatchingPipeline:
         edu_level = encode_education_level(entities.get("education", []))
         org_count = len(entities.get("organizations", []))
         
-        # Estimate project count from skill diversity
-        proj_count = min(skill_count // 2, 6)
+        # Project mentions are not extracted by the current NER model; do not infer them from skill count.
+        proj_count = 0
         
         features = np.array([[
             siamese_score,
@@ -241,7 +241,8 @@ class CandidateMatchingPipeline:
         exp_years = parse_experience_years(entities.get("experience", []))
         edu_level = encode_education_level(entities.get("education", []))
         org_count = len(entities.get("organizations", []))
-        proj_count = min(skill_count // 2, 6)
+        # Project mentions are not extracted by the current NER model; do not infer them from skill count.
+        proj_count = 0
         
         feature_vector = [siamese_score, skill_count, exp_years, edu_level, org_count, proj_count]
         
@@ -257,7 +258,7 @@ class CandidateMatchingPipeline:
             "match_score": round(match_score, 4),
             "match_percentage": round(match_score * 100, 1),
             "decision": decision,
-            "confidence": round(confidence, 4),
+            "confidence": None,
             "feature_vector": {
                 "siamese_similarity": round(siamese_score, 4),
                 "skill_count": skill_count,

@@ -101,7 +101,7 @@ def _skills_mentioned(text: str, skills: List[str]) -> List[str]:
 def analyze_role_match(
     resume_text: str,
     target_text: str,
-    model_result: Dict,
+    model_result: Optional[Dict] = None,
     use_profile: bool = True,
     role_name: str = "Data Analyst",
 ) -> Dict:
@@ -138,13 +138,27 @@ def analyze_role_match(
     matched_weight = sum(weights.get(skill, 1.0) for skill in matched)
     skill_coverage = (matched_weight / total_weight) if total_weight else 0.0
 
-    raw_model_score = model_result.get("match_score", 0.0)
-    try:
-        model_score = max(0.0, min(1.0, float(raw_model_score)))
-    except (TypeError, ValueError):
-        model_score = 0.0
+    # The neural model result is optional. If it is missing or malformed,
+    # do not fabricate a zero neural score; report the transparent skill-only score.
+    if isinstance(model_result, dict):
+        raw_model_score = model_result.get("match_score")
+    else:
+        raw_model_score = None
 
-    role_score = (0.60 * model_score) + (0.40 * skill_coverage)
+    model_score = None
+    if raw_model_score is not None:
+        try:
+            candidate_score = float(raw_model_score)
+            if candidate_score == candidate_score and abs(candidate_score) != float("inf"):
+                model_score = max(0.0, min(1.0, candidate_score))
+        except (TypeError, ValueError):
+            model_score = None
+
+    if model_score is None:
+        role_score = skill_coverage
+    else:
+        role_score = (0.60 * model_score) + (0.40 * skill_coverage)
+
     role_percentage = round(role_score * 100.0, 1)
     coverage_percentage = round(skill_coverage * 100.0, 1)
 
@@ -181,18 +195,34 @@ def analyze_role_match(
         "role_name": role_name,
         "role_match_score": round(role_score, 4),
         "role_match_percentage": role_percentage,
-        "decision": "STRONGER ROLE MATCH" if role_percentage >= 50 else "ROLE GAPS IDENTIFIED",
+        "decision": (
+            ("STRONGER ROLE MATCH" if role_percentage >= 50 else "ROLE GAPS IDENTIFIED")
+            if model_score is not None
+            else "REVIEW REQUIRED — skill evidence only"
+        ),
         "skill_coverage": round(skill_coverage, 4),
         "skill_coverage_percentage": coverage_percentage,
         "matched_skills": matched,
         "missing_skills": missing,
         "matched_skill_count": len(matched),
         "target_skill_count": len(all_target_skills),
-        "score_breakdown": [
-            {"Component": "Existing neural ranking score (60%)", "Score (%)": round(model_score * 100, 1), "Contribution (points)": round(model_score * 60, 1)},
-            {"Component": "Weighted target-skill coverage (40%)", "Score (%)": coverage_percentage, "Contribution (points)": round(skill_coverage * 40, 1)},
-            {"Component": "Overall role match score", "Score (%)": role_percentage, "Contribution (points)": role_percentage},
-        ],
+        "score_breakdown": (
+            [
+                {"Component": "Existing neural ranking score (60%)", "Score (%)": round(model_score * 100, 1), "Contribution (points)": round(model_score * 60, 1)},
+                {"Component": "Weighted target-skill coverage (40%)", "Score (%)": coverage_percentage, "Contribution (points)": round(skill_coverage * 40, 1)},
+                {"Component": "Overall role match score", "Score (%)": role_percentage, "Contribution (points)": role_percentage},
+            ]
+            if model_score is not None
+            else [
+                {"Component": "Weighted target-skill coverage (100%; neural score unavailable)", "Score (%)": coverage_percentage, "Contribution (points)": coverage_percentage},
+                {"Component": "Overall role match score", "Score (%)": role_percentage, "Contribution (points)": role_percentage},
+            ]
+        ),
         "improvement_suggestions": suggestions,
         "scoring_mode": "Predefined role profile" if use_profile else "Custom job description",
+        "score_note": (
+            "Combined neural and skill-evidence heuristic; not a calibrated hiring probability."
+            if model_score is not None
+            else "Skill-evidence coverage only because no valid neural model score was supplied; not a hiring probability."
+        ),
     }

@@ -546,9 +546,10 @@ def train_ner_model(num_samples=2000, epochs=25, lr=0.01, save_path="ner_model.p
     
     for epoch in range(epochs):
         total_loss = 0.0
-        random.shuffle(list(zip(train_sents, train_tags)))
-        
-        for sent, tags in zip(train_sents, train_tags):
+        training_pairs = list(zip(train_sents, train_tags))
+        random.shuffle(training_pairs)
+
+        for sent, tags in training_pairs:
             model.zero_grad()
             
             sent_tensor = sentence_to_tensor(sent, word_to_ix)
@@ -636,7 +637,8 @@ def extract_entities(text, model, word_to_ix):
         }
     """
     # Tokenize
-    words = text.lower().split()
+    # Strip punctuation before vocabulary lookup so "python," and "python" match.
+    words = re.findall(r"[a-z0-9]+", (text or "").lower())
     if not words:
         return {"skills": [], "organizations": [], "education": [], "dates": [], "experience": []}
     
@@ -694,7 +696,7 @@ def extract_entities(text, model, word_to_ix):
     
     # Deduplicate
     for key in entities:
-        entities[key] = list(set(entities[key]))
+        entities[key] = sorted(set(entities[key]))
     
     return entities
 

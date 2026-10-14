@@ -171,7 +171,7 @@ Linear(64 → 32) + ReLU
      ↓
 Linear(32 → 1) + Sigmoid Activation
      ↓
-Final Match Probability ∈ [0, 1]  (Scaled to 0 - 100%)
+Raw experimental ranker output ∈ [0, 1] (not calibrated as a probability)
 ```
 
 ### Hybrid Ranking Loss
@@ -181,7 +181,7 @@ $$\mathcal{L}_{\text{Total}} = \alpha \cdot \mathcal{L}_{\text{BCE}} + (1 - \alp
 
 - $\mathcal{L}_{\text{BCE}} = - [y \log(\hat{y}) + (1 - y) \log(1 - \hat{y})]$
 - $\mathcal{L}_{\text{MarginRanking}} = \max(0, -y_{\text{pair}} \cdot (\hat{y}_1 - \hat{y}_2) + \text{margin})$
-- $\alpha = 0.6$ balances calibrated probability output with pairwise ordering.
+- $\alpha = 0.6$ weights the two synthetic-training loss terms. The output is not calibrated as a real-world probability.
 
 ---
 
@@ -201,19 +201,20 @@ Candidate Resume (PDF or Raw Text) + Job Description
            Takes [Siamese Score, Skill Count, Exp, Edu Level, Orgs, Projects]
                       ↓
   Final Output:
-  • Decision: SHORTLISTED (>= 50%) or REJECTED (< 50%)
-  • Match Percentage & Confidence Score
-  • Full entity breakdown & feature table
-  • Leaderboard rank among competing applicants
+  • Extracted entities and experimental model diagnostics
+  • Raw ranker output (not a calibrated match probability)
+  • Transparent skill-evidence coverage for role assessment
+  • Candidate ordering by evidence coverage in batch mode
+  • No automatic shortlist/reject decision
 ```
 
 ### Streamlit Application (`app.py`)
 - **Tab 1: Intelligent Matching (3 Neural Networks)**
   - Dual-panel UI: Job Description input on left, Resume input (PDF upload or text paste) on right.
-  - Live prediction card with decision badge, match score gauge, and confidence metric.
+  - Shows transparent skill-evidence coverage; experimental neural outputs are labeled as uncalibrated diagnostics.
   - Multi-column visual breakdown:
     - Column 1: Bi-LSTM + CRF extracted entities.
-    - Column 2: Siamese Network semantic similarity bar with descriptive match classification.
+    - Column 2: Experimental Siamese signal (keyword-vector model; not validated semantic similarity).
     - Column 3: Deep Ranking MLP feature table and score.
   - Batch Candidate Comparison: Compare 2 to 10 candidates simultaneously against one JD on a ranked leaderboard.
 - **Tab 2: Resume Screening (PDF)**
@@ -223,18 +224,17 @@ Candidate Resume (PDF or Raw Text) + Job Description
 
 ---
 
-## 7. Verification & Testing Evidence
+## 7. Verification & Testing
 
-All modules include automated verification tests:
-1. `python train_all_models.py` — Trains and saves all 3 models in ~2.5 minutes on CPU.
-2. `python inference_pipeline.py` — Tests Alice (Senior Data Scientist match), Bob (Web Dev), and Charlie (Frontend) on a Senior Data Scientist role:
-   - Alice: **79.1% match (SHORTLISTED)**
-   - Bob: **10.9% match (REJECTED)**
-   - Charlie: **16.7% match (REJECTED)**
-3. `python test_pdf.py` — Tests PDF extraction and neural scoring:
-   - `strong_candidate.pdf`: **99.7% match (SHORTLISTED)**
-   - `weak_candidate.pdf`: **24.6% match (REJECTED)**
-4. `python verify_pipeline.py` — Full 5-phase test suite for baseline dataset, weights, and logic.
+The repository includes unit tests for role profiles, score semantics, parser edge cases, bundled checkpoint loading, and sample PDF extraction.
+
+Run them with:
+
+```powershell
+python -m pytest -q
+```
+
+The model checkpoints and CSV labels are based on synthetic/template-generated data. Historical example percentages and shortlist/reject labels have therefore been removed: they are not reliable performance evidence. Unit tests verify software behavior, not model accuracy or recruitment validity. A credible accuracy or ranking claim requires an independent, human-reviewed, representative evaluation dataset.
 
 ---
 
@@ -253,20 +253,25 @@ Key points to present during evaluation:
 
 ## 9. Role-Aware Matching V1 (Data Analyst)
 
-The Intelligent Matching tab supports a predefined **Data Analyst** profile and an optional custom job description. When the custom description is blank, the app builds a target description from the profile. When a custom description is supplied, recognized skills mentioned in that description become the skill-analysis targets; the existing three-network pipeline is still used.
+The Intelligent Matching tab supports a predefined **Data Analyst** profile and an optional custom job description. When the custom description is blank, the app uses the profile's required/preferred skills. For a custom description, recognized skill phrases become the targets; if no recognized skills are found, the coverage score is marked N/A. The three-network pipeline remains available as experimental diagnostics, but its output does not determine the main evidence score.
 
 The assessment adds:
 - Overall role-match score.
 - Matched and missing/unverified target skills.
-- A score breakdown separating the existing neural ranking score from weighted skill coverage.
+- A score breakdown separating required-skill evidence from preferred-skill evidence.
 - Improvement suggestions based on missing evidence.
 
-The role-match score is a transparent heuristic: **60% existing neural ranking score + 40% weighted target-skill coverage**. In predefined-profile mode, core skills receive twice the weight of preferred skills. In custom-JD mode, recognized skills named in the JD are equally weighted. This score is not a calibrated probability of job performance and should not be used as the sole hiring criterion. A missing skill means it was not detected in the provided resume text, not that the candidate necessarily lacks it.
+The main **Skill Evidence Coverage** score is deliberately independent of the unvalidated neural outputs. In predefined-profile mode, it is **70% required-skill coverage + 30% preferred-skill coverage**. In custom-JD mode, it is the proportion of recognized skills named in the JD that are detected in the resume. If no recognized skills are found in a custom JD, the score is unavailable (N/A), rather than 0%. It is not accuracy, proficiency, or a probability of job performance. A missing skill means it was not detected in the provided resume text, not that the candidate necessarily lacks it.
 
-The original Resume Screening and Manual Simulation tabs remain unchanged. Batch comparison continues to use the existing neural ranking pipeline, using the custom JD when supplied or the predefined role target otherwise.
+The Resume Screening and Manual Simulation tabs remain as educational demonstrations, with fabricated fallback feature values and automatic shortlist/reject labels removed. Batch comparison now uses the same role-evidence coverage formula as the single-candidate assessment rather than ranking candidates by the unvalidated neural output.
 
 Run the role-profile unit tests with:
 
 ```bash
 python -m unittest test_role_profiles.py
 ```
+
+
+### V1 follow-up: profile visibility and PDF batch uploads
+
+The Intelligent Matching role selector now exposes the predefined profile's required and preferred skills in an expandable panel, so users can see the baseline criteria before adding company-specific requirements to a custom job description. Batch Candidate Comparison accepts 2–10 PDF resumes in one upload; filenames are used as candidate names, unreadable PDFs are reported, and at least two readable resumes are required for a leaderboard. Existing single-resume PDF/text input and the other application tabs remain available.

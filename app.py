@@ -72,7 +72,7 @@ def manual_forward_pass(nn, X_raw):
     A2 = nn.sigmoid(Z2)
     
     score = float(A2[0][0]) * 100
-    decision = "Shortlisted" if score >= 50 else "Rejected"
+    decision = "Review manually — demonstration only"
     
     return {
         "X_norm": X_norm.flatten(),
@@ -97,17 +97,21 @@ def main():
     Named Entity Recognition
     
     **2. Siamese Network**  
-    Resume-JD Semantic Matching
+    Experimental keyword-vector pair signal
     
     **3. Deep Ranking MLP**  
-    Final Match Score
+    Raw output trained on synthetic targets
     """)
     st.sidebar.markdown("---")
     st.sidebar.markdown("Built with PyTorch + NumPy from scratch")
     
     # Title
     st.title("AI Recruitment Simulation System")
-    st.caption("Custom Neural Networks for Intelligent Candidate Matching")
+    st.caption("Resume evidence analysis and experimental neural-network demonstrations")
+    st.warning(
+        "Research/demo project: model outputs are not validated hiring probabilities or model accuracy. "
+        "Use results to support human review only; do not automatically reject or shortlist candidates."
+    )
     
     # Load models
     nn = load_original_model()
@@ -134,7 +138,7 @@ def main():
     if tab1 and pipeline:
         with tab1:
             st.header("Intelligent Candidate Matching")
-            st.markdown("Uses **3 Custom Neural Networks** working together to match candidates to job descriptions.")
+            st.markdown("The three-network pipeline is retained for experimentation. The primary score below is transparent skill-evidence coverage; neural outputs are uncalibrated diagnostics.")
             
             # Two columns: JD input + Resume input
             col_jd, col_resume = st.columns(2)
@@ -149,6 +153,16 @@ def main():
                 )
                 role_profile = get_role_profile(selected_role)
                 st.caption("A predefined role profile is used when no custom job description is supplied.")
+                with st.expander("View skills included in the Data Analyst profile", expanded=True):
+                    st.markdown("**Core / required skills**")
+                    st.write(", ".join(role_profile["required_skills"]))
+                    st.markdown("**Preferred / additional skills**")
+                    st.write(", ".join(role_profile["preferred_skills"]))
+                    st.caption(
+                        "To tailor the assessment, paste the company's job description below. "
+                        "Add role-specific tools, domain knowledge, or responsibilities there; "
+                        "recognized skills mentioned in the custom description are used for skill matching."
+                    )
                 jd_text = st.text_area(
                     "Optional: paste a specific job description",
                     height=200,
@@ -202,23 +216,32 @@ def main():
                     st.markdown("---")
                     st.subheader(f"{selected_role} Assessment")
                     st.caption(
-                        "The role score combines the existing neural model score with transparent skill coverage. "
-                        "It is a resume-to-role match indicator, not a probability of job success."
+                        "This score measures configured skill evidence found in the resume text. "
+                        "It is not model accuracy, a probability of job success, or proof of proficiency."
                     )
                     score_col, coverage_col, target_col = st.columns(3)
-                    score_col.metric("Role Match Score", f"{role_analysis['role_match_percentage']:.1f}/100")
+                    score_col.metric(
+                        "Skill Evidence Coverage",
+                        f"{role_analysis['role_match_percentage']:.1f}/100"
+                        if role_analysis.get("score_available", role_analysis.get("role_match_percentage") is not None) else "N/A",
+                    )
+                    if not role_analysis.get("score_available", role_analysis.get("role_match_percentage") is not None):
+                        st.warning(
+                            "No recognized skills were found in the custom job description, so a skill-coverage score cannot be calculated. "
+                            "Add explicit tools/skills to the JD or use the predefined role profile."
+                        )
                     coverage_col.metric(
                         "Target Skills Found",
                         f"{role_analysis['matched_skill_count']}/{role_analysis['target_skill_count']}",
                     )
                     target_col.metric(
-                        "Semantic Similarity",
+                        "Experimental Pair Signal",
                         f"{result['siamese_similarity']:.3f}",
                     )
-                    if role_analysis["role_match_percentage"] >= 50:
-                        st.success(f"**{role_analysis['decision']}** — based on the configured role-match threshold.")
-                    else:
-                        st.warning(f"**{role_analysis['decision']}** — review the skill gaps and supporting evidence.")
+                    st.info(
+                        "Use this as a review aid, not an automatic shortlist/reject decision. "
+                        "A missing skill means it was not detected in the text; it does not prove the candidate lacks it."
+                    )
                     
                     breakdown_col, skills_col = st.columns([1, 1])
                     with breakdown_col:
@@ -246,19 +269,20 @@ def main():
                     
                     with st.expander("How the role score is calculated"):
                         st.write(
-                            "Role match score = 60% of the existing neural ranking score + "
-                            "40% of target-skill coverage. Skill coverage is the proportion of "
-                            "target skills found in the resume text. This transparent combination "
-                            "is a heuristic and has not been calibrated as a hiring probability."
+                            "For the predefined Data Analyst profile, evidence coverage is calculated as "
+                            "70% required-skill coverage plus 30% preferred-skill coverage. For a custom "
+                            "job description, it is the proportion of recognized skills named in that "
+                            "description that appear in the resume text. This is a text-matching heuristic, "
+                            "not model accuracy, a hiring probability, or proof that a skill is proficiently used."
                         )
                     
                     st.markdown("---")
                     st.subheader("Existing Neural Network Outputs")
-                    st.caption("The original three-network output is retained below for transparency.")
-                    if result["decision"] == "SHORTLISTED":
-                        st.success(f"**Neural model decision: {result['decision']}** | Neural Model Score: **{result['match_percentage']}%** | Model margin: {result['confidence']:.2f}")
-                    else:
-                        st.error(f"**Neural model decision: {result['decision']}** | Neural Model Score: **{result['match_percentage']}%** | Model margin: {result['confidence']:.2f}")
+                    st.caption(
+                        "Experimental diagnostics from models trained on synthetic/demo data. "
+                        "These values are shown for transparency only and are not validated match probabilities."
+                    )
+                    st.metric("Experimental ranker output (0–1)", f"{result['match_score']:.3f}")
                     
                     # Three columns for the 3 network outputs
                     st.markdown("### Neural Network Outputs")
@@ -296,26 +320,24 @@ def main():
                     
                     with net2:
                         st.markdown("#### 2. Siamese Network")
-                        st.caption("Resume-JD Semantic Similarity")
+                        st.caption("Experimental similarity signal (not calibrated)")
                         
                         sim_score = result["siamese_similarity"]
-                        st.metric("Semantic Similarity", f"{sim_score:.4f}")
+                        st.metric("Experimental signal (0–1)", f"{sim_score:.4f}")
                         st.progress(min(sim_score, 1.0))
                         
-                        if sim_score > 0.7:
-                            st.markdown("**Strong semantic match** between resume and job description.")
-                        elif sim_score > 0.5:
-                            st.markdown("**Moderate semantic match.** Some overlap in skills/domain.")
-                        else:
-                            st.markdown("**Weak semantic match.** Resume may not align with this role.")
+                        st.caption(
+                            "The Siamese model uses keyword-frequency vectors and synthetic training pairs; "
+                            "treat this as an experimental signal, not a validated semantic similarity score."
+                        )
                     
                     with net3:
                         st.markdown("#### 3. Deep Ranking MLP")
-                        st.caption("Final Match Scoring")
+                        st.caption("Experimental neural output (not calibrated)")
                         
                         fv = result["feature_vector"]
-                        st.metric("Final Match Score", f"{result['match_percentage']}%")
-                        st.progress(min(result['match_score'], 1.0))
+                        st.metric("Raw ranker output (0–1)", f"{result['match_score']:.3f}")
+                        st.progress(max(0.0, min(float(result['match_score']), 1.0)))
                         
                         st.markdown("**Input Feature Vector:**")
                         fv_df = pd.DataFrame({
@@ -329,44 +351,104 @@ def main():
             # ---- Batch Comparison ----
             st.markdown("---")
             st.subheader("Batch Candidate Comparison")
-            st.caption("Compare multiple candidates against the same job description")
-            
-            num_candidates = st.number_input("Number of candidates to compare", min_value=2, max_value=10, value=3, key="num_cands")
-            
-            candidates = []
-            cols = st.columns(min(num_candidates, 3))
-            for i in range(num_candidates):
-                with cols[i % 3]:
-                    name = st.text_input(f"Candidate {i+1} Name", value=f"Candidate {i+1}", key=f"cand_name_{i}")
-                    text = st.text_area(f"Resume Text", height=100, key=f"cand_text_{i}", 
-                                       placeholder=f"Paste resume text for candidate {i+1}...")
-                    if text.strip():
-                        candidates.append({"name": name, "resume_text": text})
-            
-            if st.button("Rank All Candidates", key="rank_btn") and len(candidates) >= 2:
-                with st.spinner("Evaluating and ranking candidates..."):
-                    results = pipeline.rank_multiple_candidates(candidates, effective_jd)
-                
-                st.markdown("### Ranked Leaderboard")
-                leaderboard_data = []
-                for r in results:
-                    leaderboard_data.append({
-                        "Rank": r["rank"],
-                        "Name": r["name"],
-                        "Match Score (%)": r["match_percentage"],
-                        "Similarity": r["siamese_similarity"],
-                        "Skills Found": len(r["entities"].get("skills", [])),
-                        "Decision": r["decision"],
-                    })
-                
-                df_lb = pd.DataFrame(leaderboard_data)
-                st.dataframe(df_lb, hide_index=True, use_container_width=True)
+            st.caption("Upload 2–10 PDF resumes. Candidates are ranked by transparent skill-evidence coverage, not the experimental neural score.")
+
+            batch_files = st.file_uploader(
+                "Upload candidate resumes (PDF)",
+                type=["pdf"],
+                accept_multiple_files=True,
+                key="batch_resume_pdfs",
+                help="Select multiple PDF files at once. The filename is used as the candidate name.",
+            )
+            if batch_files and len(batch_files) > 10:
+                st.warning("Please upload no more than 10 resumes per comparison.")
+
+            if batch_files:
+                st.write("**Files selected:**")
+                for file in batch_files[:10]:
+                    st.write(f"- {file.name}")
+
+            if st.button("Rank All Candidates", key="rank_btn"):
+                if not batch_files or len(batch_files) < 2:
+                    st.warning("Please upload at least 2 PDF resumes to create a leaderboard.")
+                elif len(batch_files) > 10:
+                    st.warning("Please upload no more than 10 PDF resumes per comparison.")
+                else:
+                    from resume_parser import extract_text_from_pdf
+                    candidates = []
+                    parse_errors = []
+                    for file in batch_files:
+                        try:
+                            text = extract_text_from_pdf(file)
+                            if not text.strip():
+                                parse_errors.append(f"{file.name}: no readable text found. It may be a scanned PDF.")
+                                continue
+                            candidates.append({
+                                "name": os.path.splitext(file.name)[0],
+                                "resume_text": text,
+                            })
+                        except Exception as exc:
+                            parse_errors.append(f"{file.name}: could not read PDF ({exc})")
+
+                    for error in parse_errors:
+                        st.warning(error)
+
+                    if len(candidates) < 2:
+                        st.error("At least 2 readable PDF resumes are required to rank candidates.")
+                    else:
+                        with st.spinner("Extracting PDF text and comparing skill evidence..."):
+                            ranked_results = []
+                            for candidate in candidates:
+                                result = pipeline.evaluate_candidate(candidate["resume_text"], effective_jd)
+                                analysis = analyze_role_match(
+                                    resume_text=candidate["resume_text"],
+                                    target_text=effective_jd,
+                                    model_result=result,
+                                    use_profile=not bool(jd_text.strip()),
+                                    role_name=selected_role,
+                                )
+                                ranked_results.append({
+                                    "name": candidate["name"],
+                                    "analysis": analysis,
+                                    "diagnostics": result,
+                                })
+                            if not ranked_results[0]["analysis"].get("score_available", ranked_results[0]["analysis"].get("role_match_percentage") is not None):
+                                st.warning(
+                                    "A leaderboard cannot be meaningfully ranked because the custom JD contains no recognized skill targets. "
+                                    "Add explicit skills/tools to the JD or leave it blank to use the predefined profile."
+                                )
+                            else:
+                                ranked_results.sort(
+                                    key=lambda item: item["analysis"]["role_match_percentage"],
+                                    reverse=True,
+                                )
+                                st.markdown("### Ranked Leaderboard")
+                                st.caption("Rank is based on the same evidence-coverage formula shown in the single-candidate assessment.")
+                                leaderboard_data = []
+                                for rank, item in enumerate(ranked_results, start=1):
+                                    analysis = item["analysis"]
+                                    leaderboard_data.append({
+                                        "Rank": rank,
+                                        "Candidate": item["name"],
+                                        "Evidence Coverage (%)": analysis["role_match_percentage"],
+                                        "Target Skills Found": f"{analysis['matched_skill_count']}/{analysis['target_skill_count']}",
+                                        "Missing / Unverified Skills": ", ".join(analysis["missing_skills"]) or "None detected",
+                                        "Experimental Ranker (0–1)": round(item["diagnostics"]["match_score"], 3),
+                                    })
+
+                                df_lb = pd.DataFrame(leaderboard_data)
+                                st.dataframe(df_lb, hide_index=True, use_container_width=True)
+                                st.info(
+                                    "Leaderboard order reflects detected skill mentions only. Review each resume manually; "
+                                    "PDF text extraction and keyword matching can miss skills or misinterpret context."
+                                )
     
     # ================================================================
     # TAB 2: Original Resume Screening
     # ================================================================
     with tab2:
-        st.header("Upload a Resume for AI Screening")
+        st.header("Resume Feature Extraction (Demo)")
+        st.caption("Keyword counts and the baseline network are educational approximations, not validated candidate assessments. Duration mentions may overlap and are not a verified employment-history calculation.")
         
         if nn is None:
             st.error("Model file model_weights.npz not found! Please run train.py first.")
@@ -375,12 +457,20 @@ def main():
         uploaded_file = st.file_uploader("Choose a PDF file", type="pdf", key="pdf_original")
         
         if uploaded_file is not None:
-            with st.spinner('Parsing resume...'):
-                features = parse_resume(uploaded_file)
-                
+            try:
+                with st.spinner("Parsing resume..."):
+                    features = parse_resume(uploaded_file)
+            except Exception as exc:
+                st.error(f"Could not parse this PDF: {exc}")
+                st.stop()
+
+            if not features.get("Text_Extracted", True):
+                st.error("No readable text was extracted from this PDF. It may be scanned or image-only; use a text-based PDF.")
+                st.stop()
+
             st.subheader("Extracted Candidate Features")
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Years of Experience", f"{features['Experience']} Yrs")
+            col1.metric("Duration Mentions (Estimate)", f"{features['Experience']} Yrs")
             col2.metric("Technical Score", f"{features['Tech_Score']}/100")
             col3.metric("Soft Skills Score", f"{features['Soft_Score']}/100")
             col4.metric("Projects Completed", f"{features['Projects']}")
@@ -399,17 +489,16 @@ def main():
                 st.write("**Output Layer Pre-activation (Z2 = A1.W2 + b2):**", np.round(results["Z2"], 4))
                 
             st.divider()
-            st.subheader("Final Decision")
-            if results["Decision"] == "Shortlisted":
-                st.success(f"**{results['Decision']}** | Fit Score: {results['Fit Score']:.2f}%")
-            else:
-                st.error(f"**{results['Decision']}** | Fit Score: {results['Fit Score']:.2f}%")
+            st.subheader("Demonstration Output")
+            st.metric("Uncalibrated model output (0–100 scale)", f"{results['Fit Score']:.2f}")
+            st.info("No shortlist/reject decision is made. This score is not calibrated and must not be interpreted as accuracy or probability.")
                 
     # ================================================================
     # TAB 3: Manual Simulation
     # ================================================================
     with tab3:
-        st.header("Manual Candidate Simulation")
+        st.header("Manual Model Simulation")
+        st.caption("Change the inputs to inspect the baseline neural network. Its output is a demonstration score, not a hiring probability.")
         
         if nn is None:
             st.error("Model file model_weights.npz not found!")
@@ -426,30 +515,32 @@ def main():
         X_raw = [exp_val, tech_val, soft_val, proj_val]
         results = manual_forward_pass(nn, X_raw)
         
-        st.markdown("### Prediction")
-        if results["Decision"] == "Shortlisted":
-            st.success(f"Decision: **{results['Decision']}** (Fit Score: {results['Fit Score']:.2f}%)")
-        else:
-            st.error(f"Decision: **{results['Decision']}** (Fit Score: {results['Fit Score']:.2f}%)")
+        st.markdown("### Demonstration Output")
+        st.metric("Uncalibrated model output (0–100 scale)", f"{results['Fit Score']:.2f}")
+        st.info("This is a model output for experimentation, not a validated hiring probability or accuracy metric.")
             
         st.divider()
-        st.subheader("Batch Screening Leaderboard (Test Data)")
+        st.subheader("Synthetic Demo Dataset Leaderboard")
+        st.caption("The CSV rows are synthetically generated. This leaderboard illustrates inference only and is not evidence of real-world model performance.")
         
         if os.path.exists('test_candidates.csv'):
             df = pd.read_csv('test_candidates.csv')
-            
+            # The CSV's "shortlisted" column is a synthetic training label, not a real candidate outcome.
+            if "shortlisted" in df.columns:
+                df = df.drop(columns=["shortlisted"])
+
             # Predict for all
             X_test_raw = df[['years_experience', 'technical_score', 'soft_skills_score', 'projects_completed']].values
             X_norm, _, _ = min_max_normalize(X_test_raw, nn.min_vals, nn.max_vals)
             
             _, probs = nn.predict(X_norm)
             df['Fit Score (%)'] = (probs.flatten() * 100).round(2)
-            df['Decision'] = df['Fit Score (%)'].apply(lambda x: "Shortlisted" if x >= 50 else "Rejected")
+            df['Interpretation'] = "Demo score only — review manually"
             
             # Sort by Fit Score
             df_sorted = df.sort_values(by='Fit Score (%)', ascending=False).reset_index(drop=True)
             df_sorted.index = df_sorted.index + 1
-            st.dataframe(df_sorted.style.highlight_max(subset=['Fit Score (%)'], color='lightgreen'), use_container_width=True)
+            st.dataframe(df_sorted, hide_index=True, use_container_width=True)
         else:
             st.warning("test_candidates.csv not found! Run train.py first.")
 

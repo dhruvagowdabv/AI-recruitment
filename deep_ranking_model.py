@@ -18,7 +18,7 @@ Architecture:
 
 This network learns to weight and combine the semantic similarity from
 the Siamese network with structured features from the BiLSTM-CRF NER
-to produce a final calibrated match probability.
+to produce a raw sigmoid output trained against synthetic formula-generated targets. This output is not a calibrated probability.
 """
 
 import torch
@@ -48,7 +48,7 @@ class DeepRankingMLP(nn.Module):
         [5] project_count       - Number of projects mentioned
     
     Output:
-        match_score: float in [0, 1], probability of candidate-job fit
+        match_score: raw sigmoid output in [0, 1], not a calibrated probability
     """
     
     def __init__(self, input_dim=6):
@@ -129,7 +129,7 @@ class DeepRankingMLP(nn.Module):
 class RankingLoss(nn.Module):
     """
     Combined loss for the ranking network:
-        1. BCE Loss: For calibrated probability prediction
+        1. BCE Loss: For fitting synthetic labels
         2. Margin Ranking Loss: To ensure correct relative ordering
         
     Total Loss = α · BCE + (1-α) · MarginRanking
@@ -395,7 +395,7 @@ def train_ranking_model(num_samples=4000, epochs=40, lr=0.001, save_path="rankin
                 correct = (binary_preds == binary_labels).sum().item()
                 val_acc = correct / len(Y_val) * 100
             
-            print(f"      Epoch {epoch+1:3d}/{epochs} | Train Loss: {avg_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.1f}%")
+            print(f"      Epoch {epoch+1:3d}/{epochs} | Train Loss: {avg_loss:.4f} | Synthetic-label Val Acc: {val_acc:.1f}%")
     
     # Save model
     model.eval()

@@ -7,7 +7,7 @@ End-to-end pipeline that connects all 3 custom neural networks:
         ↓
     [1] BiLSTM-CRF NER → Extract entities (skills, orgs, education, dates, experience)
         ↓
-    [2] Siamese Network → Compute resume-JD semantic similarity
+    [2] Siamese Network → Compute an experimental keyword-vector pair signal
         ↓
     [3] Deep Ranking MLP → Produce final match score using NER features + similarity
         ↓
@@ -156,7 +156,7 @@ class CandidateMatchingPipeline:
     
     def compute_resume_jd_similarity(self, resume_text, jd_text):
         """
-        Step 2: Use Siamese Network to compute semantic similarity.
+        Step 2: Use the experimental keyword-vector Siamese network to compute a pair signal.
         
         Returns float between 0.0 and 1.0
         """
@@ -221,11 +221,11 @@ class CandidateMatchingPipeline:
         Returns:
             dict with:
                 - entities: Extracted named entities from resume
-                - siamese_similarity: Semantic similarity score
-                - match_score: Final calibrated match score
-                - decision: "SHORTLISTED" or "REJECTED"
+                - siamese_similarity: Experimental pair signal (not calibrated)
+                - match_score: Raw experimental ranker output in [0, 1]
+                - decision: Review required; no automatic hiring decision
                 - feature_vector: The 6-dim input to ranking MLP
-                - confidence: How confident the decision is
+                - confidence: None; no calibrated confidence estimate is available
         """
         if not self.loaded:
             raise RuntimeError("Models not loaded. Call load_models() first.")

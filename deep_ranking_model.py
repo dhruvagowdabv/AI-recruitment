@@ -18,7 +18,7 @@ Architecture:
 
 This network learns to weight and combine the semantic similarity from
 the Siamese network with structured features from the BiLSTM-CRF NER
-to produce a final calibrated match probability.
+to produce a raw sigmoid output trained against synthetic formula-generated targets. This output is not a calibrated probability.
 """
 
 import torch
@@ -395,7 +395,7 @@ def train_ranking_model(num_samples=4000, epochs=40, lr=0.001, save_path="rankin
                 correct = (binary_preds == binary_labels).sum().item()
                 val_acc = correct / len(Y_val) * 100
             
-            print(f"      Epoch {epoch+1:3d}/{epochs} | Train Loss: {avg_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.1f}%")
+            print(f"      Epoch {epoch+1:3d}/{epochs} | Train Loss: {avg_loss:.4f} | Synthetic-label Val Acc: {val_acc:.1f}%")
     
     # Save model
     model.eval()

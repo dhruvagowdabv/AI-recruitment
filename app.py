@@ -72,7 +72,7 @@ def manual_forward_pass(nn, X_raw):
     A2 = nn.sigmoid(Z2)
     
     score = float(A2[0][0]) * 100
-    decision = "Shortlisted" if score >= 50 else "Rejected"
+    decision = "Review manually — demonstration only"
     
     return {
         "X_norm": X_norm.flatten(),
@@ -107,7 +107,11 @@ def main():
     
     # Title
     st.title("AI Recruitment Simulation System")
-    st.caption("Custom Neural Networks for Intelligent Candidate Matching")
+    st.caption("Resume evidence analysis and experimental neural-network demonstrations")
+    st.warning(
+        "Research/demo project: model outputs are not validated hiring probabilities or model accuracy. "
+        "Use results to support human review only; do not automatically reject or shortlist candidates."
+    )
     
     # Load models
     nn = load_original_model()
@@ -429,7 +433,8 @@ def main():
     # TAB 2: Original Resume Screening
     # ================================================================
     with tab2:
-        st.header("Upload a Resume for AI Screening")
+        st.header("Resume Feature Extraction (Demo)")
+        st.caption("Keyword counts and the baseline network are educational approximations, not validated candidate assessments.")
         
         if nn is None:
             st.error("Model file model_weights.npz not found! Please run train.py first.")
@@ -440,7 +445,11 @@ def main():
         if uploaded_file is not None:
             with st.spinner('Parsing resume...'):
                 features = parse_resume(uploaded_file)
-                
+
+            if not features.get("Text_Extracted", True):
+                st.error("No readable text was extracted from this PDF. It may be scanned or image-only; use a text-based PDF.")
+                st.stop()
+
             st.subheader("Extracted Candidate Features")
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Years of Experience", f"{features['Experience']} Yrs")
@@ -462,17 +471,16 @@ def main():
                 st.write("**Output Layer Pre-activation (Z2 = A1.W2 + b2):**", np.round(results["Z2"], 4))
                 
             st.divider()
-            st.subheader("Final Decision")
-            if results["Decision"] == "Shortlisted":
-                st.success(f"**{results['Decision']}** | Fit Score: {results['Fit Score']:.2f}%")
-            else:
-                st.error(f"**{results['Decision']}** | Fit Score: {results['Fit Score']:.2f}%")
+            st.subheader("Demonstration Output")
+            st.metric("Uncalibrated model output (0–100 scale)", f"{results['Fit Score']:.2f}")
+            st.info("No shortlist/reject decision is made. This score is not calibrated and must not be interpreted as accuracy or probability.")
                 
     # ================================================================
     # TAB 3: Manual Simulation
     # ================================================================
     with tab3:
-        st.header("Manual Candidate Simulation")
+        st.header("Manual Model Simulation")
+        st.caption("Change the inputs to inspect the baseline neural network. Its output is a demonstration score, not a hiring probability.")
         
         if nn is None:
             st.error("Model file model_weights.npz not found!")
@@ -489,14 +497,13 @@ def main():
         X_raw = [exp_val, tech_val, soft_val, proj_val]
         results = manual_forward_pass(nn, X_raw)
         
-        st.markdown("### Prediction")
-        if results["Decision"] == "Shortlisted":
-            st.success(f"Decision: **{results['Decision']}** (Fit Score: {results['Fit Score']:.2f}%)")
-        else:
-            st.error(f"Decision: **{results['Decision']}** (Fit Score: {results['Fit Score']:.2f}%)")
+        st.markdown("### Demonstration Output")
+        st.metric("Uncalibrated model output (0–100 scale)", f"{results['Fit Score']:.2f}")
+        st.info("This is a model output for experimentation, not a validated hiring probability or accuracy metric.")
             
         st.divider()
-        st.subheader("Batch Screening Leaderboard (Test Data)")
+        st.subheader("Synthetic Demo Dataset Leaderboard")
+        st.caption("The CSV rows are synthetically generated. This leaderboard illustrates inference only and is not evidence of real-world model performance.")
         
         if os.path.exists('test_candidates.csv'):
             df = pd.read_csv('test_candidates.csv')
@@ -507,12 +514,12 @@ def main():
             
             _, probs = nn.predict(X_norm)
             df['Fit Score (%)'] = (probs.flatten() * 100).round(2)
-            df['Decision'] = df['Fit Score (%)'].apply(lambda x: "Shortlisted" if x >= 50 else "Rejected")
+            df['Interpretation'] = "Demo score only — review manually"
             
             # Sort by Fit Score
             df_sorted = df.sort_values(by='Fit Score (%)', ascending=False).reset_index(drop=True)
             df_sorted.index = df_sorted.index + 1
-            st.dataframe(df_sorted.style.highlight_max(subset=['Fit Score (%)'], color='lightgreen'), use_container_width=True)
+            st.dataframe(df_sorted, hide_index=True, use_container_width=True)
         else:
             st.warning("test_candidates.csv not found! Run train.py first.")
 

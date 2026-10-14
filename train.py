@@ -28,8 +28,8 @@ def evaluate_metrics(y_true, y_pred):
     recall = TP / (TP + FN) if (TP + FN) > 0 else 0
     f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
     
-    print("\n=== Evaluation Metrics ===")
-    print(f"Accuracy:  {accuracy * 100:.2f}%")
+    print("\n=== Metrics against synthetic test labels (not real-world performance) ===")
+    print(f"Synthetic-label accuracy: {accuracy * 100:.2f}%")
     print(f"Precision: {precision:.4f}")
     print(f"Recall:    {recall:.4f}")
     print(f"F1-Score:  {f1_score:.4f}")

@@ -36,6 +36,7 @@ def _assessment_row(name, resume_text, target_text, use_profile, role_name):
     analysis = analyze_role_match(
         resume_text=resume_text,
         target_text=target_text,
+        model_result=None,
         use_profile=use_profile,
         role_name=role_name,
     )
@@ -119,6 +120,7 @@ def main():
                     result = analyze_role_match(
                         resume_text=resume_text,
                         target_text=target_text,
+                        model_result=None,
                         use_profile=use_profile,
                         role_name=role_name,
                     )

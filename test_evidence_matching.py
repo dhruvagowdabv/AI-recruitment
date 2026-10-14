@@ -30,7 +30,7 @@ class EvidenceMatchingTests(unittest.TestCase):
     def test_custom_jd_classifies_preferred_skills_from_local_wording(self):
         result = analyze_role_match(
             "Python developer",
-            "Python is required. Tableau is preferred.",
+            "Python is required; Tableau is preferred.",
             use_profile=False,
         )
         self.assertIn("Python", result["required_skills"])

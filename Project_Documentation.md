@@ -247,3 +247,26 @@ Key points to present during evaluation:
    Standard classifiers fail when matching arbitrary text pairs because resumes and JDs have different lengths and wording. Siamese networks learn a shared metric space where similar semantic pairs are pulled together and dissimilar pairs are pushed apart by at least margin $m$.
 3. **Why Deep Ranking MLP on top of Siamese?**
    Semantic similarity alone doesn't measure seniority or qualification fit. A junior developer with Python skills has high semantic similarity to a Senior Architect role, but lacks experience years and education credentials. The Deep Ranking MLP integrates both semantic and structured factors.
+
+
+---
+
+## 9. Role-Aware Matching V1 (Data Analyst)
+
+The Intelligent Matching tab supports a predefined **Data Analyst** profile and an optional custom job description. When the custom description is blank, the app builds a target description from the profile. When a custom description is supplied, recognized skills mentioned in that description become the skill-analysis targets; the existing three-network pipeline is still used.
+
+The assessment adds:
+- Overall role-match score.
+- Matched and missing/unverified target skills.
+- A score breakdown separating the existing neural ranking score from weighted skill coverage.
+- Improvement suggestions based on missing evidence.
+
+The role-match score is a transparent heuristic: **60% existing neural ranking score + 40% weighted target-skill coverage**. In predefined-profile mode, core skills receive twice the weight of preferred skills. In custom-JD mode, recognized skills named in the JD are equally weighted. This score is not a calibrated probability of job performance and should not be used as the sole hiring criterion. A missing skill means it was not detected in the provided resume text, not that the candidate necessarily lacks it.
+
+The original Resume Screening and Manual Simulation tabs remain unchanged. Batch comparison continues to use the existing neural ranking pipeline, using the custom JD when supplied or the predefined role target otherwise.
+
+Run the role-profile unit tests with:
+
+```bash
+python -m unittest test_role_profiles.py
+```

@@ -178,6 +178,10 @@ def analyze_role_match(
     preferred, then use the same weighting when preferred skills are present. A custom
     JD with no recognized skills has no valid score and returns score_available=False.
     """
+    # The neural model result is optional; normalize missing or malformed values safely.
+    if not isinstance(model_result, dict):
+        model_result = None
+
     profile = get_role_profile(role_name)
     resume_text = resume_text or ""
     target_text = target_text or ""
